@@ -4,6 +4,12 @@ This collects accounting events relating to S3 storage use by workspaces.
 
 This serves as a template repository for new UKEODHP Python-base software components.
 
+```
+k port-forward -n pulsar svc/pulsar-proxy 6650:6650 # in one terminal
+python -m accounting_s3_usage.sampler --pulsar-url pulsar://localhost:6650 -v --once
+```
+
+
 # Development of this component
 
 ## Getting started

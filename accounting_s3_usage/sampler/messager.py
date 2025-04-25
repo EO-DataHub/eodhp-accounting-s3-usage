@@ -20,16 +20,20 @@ class S3SamplerMessager(Messager[Iterable[str], BillingResourceConsumptionRateSa
             workspace = request_msg.workspace
             access_point = request_msg.access_point_name
 
+            workspace = "james"
+
             print(f"\n============= Processing workspace: {workspace} =============")
 
             storage_gb = get_prefix_storage_size(bucket_name, workspace)
-            data_transfer_gb = get_access_point_data_transfer(bucket_name, access_point)
-            api_calls = get_access_point_api_calls(bucket_name, access_point)
+            data_transfer_gb = get_access_point_data_transfer(workspace)
+            api_calls = get_access_point_api_calls(workspace)
 
             print(f"Storage (GB): {storage_gb}")
             print(f"Data Transfer (GB): {data_transfer_gb}")
             print(f"API Calls: {api_calls}")
             print("\n")
+
+            break
 
             if storage_gb is None:
                 logging.warning(f"No metrics found for bucket {bucket_name}")
