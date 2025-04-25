@@ -1,10 +1,11 @@
 import logging
+import os
 from dataclasses import dataclass
 
 import boto3
 
-AWS_PREFIX = "eodhp-dev-go3awhw0-"
-AWS_BUCKET_NAME = "workspaces-eodhp-dev"
+AWS_PREFIX = os.getenv("AWS_PREFIX", "eodhp-dev-go3awhw0-")
+AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "workspaces-eodhp-dev")
 
 
 @dataclass

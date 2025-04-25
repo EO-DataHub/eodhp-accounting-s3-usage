@@ -1,12 +1,13 @@
+import os
 from datetime import datetime
 
 import boto3
 
 from .athena_utils import run_athena_query
 
-ATHENA_DB = "s3_access_logs_db"
-ATHENA_OUTPUT_BUCKET = "eodhp-jh-test-bucket-logs"
-ATHENA_TABLE = "workspaces_logs_eodhp_dev"
+ATHENA_DB = os.getenv("ATHENA_DB", "s3_access_logs_db")
+ATHENA_OUTPUT_BUCKET = os.getenv("ATHENA_OUTPUT_BUCKET", "workspaces-logs-eodhp-dev")
+ATHENA_TABLE = os.getenv("ATHENA_TABLE", "workspaces_logs_eodhp_dev")
 
 
 def format_datetime(dt: datetime) -> str:

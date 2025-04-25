@@ -4,10 +4,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from eodhp_utils.messagers import Messager, PulsarJSONMessager
-from eodhp_utils.pulsar.messages import (
-    BillingEvent,
-    BillingResourceConsumptionRateSample,
-)
+from eodhp_utils.pulsar.messages import BillingEvent, BillingResourceConsumptionRateSample
 from opentelemetry import baggage, trace
 from opentelemetry.context import attach, detach
 
@@ -21,7 +18,10 @@ from .time_utils import align_to_midnight
 
 tracer = trace.get_tracer("s3-usage-sampler")
 
+# we need a slight delay for the server log delivery
+# read more here: https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html#LogDeliveryBestEffort
 LOG_DELAY_BUFFER = timedelta(hours=3)
+# due to the delay, it is safest to sample once a day
 COLLECTION_INTERVAL = timedelta(days=1)
 
 
