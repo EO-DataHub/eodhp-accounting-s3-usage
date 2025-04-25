@@ -3,13 +3,16 @@
 This collects accounting events relating to S3 storage use by workspaces.
 
 Before running this, ensure that you have setup the necessary prerequisites:
-- The workspaces bucket has got "Server access logging" enabled
-- The Athena database and table has been set up.
+- A bucket to collect the logs in, e.g. `workspaces_logs_eodhp_ENVIRONMENT` (This should be created through Terraform)
+- The actual workspaces bucket has got "Server access logging" enabled and is distrubuting logs to `workspaces_logs_eodhp_ENVIRONMENT`
+- The Athena database and table has been set up (see below)
 
 To set up the Athena table, run the following SQL:
 
+__Replace `YOUR_DATABASE`, `ENVIRONMENT` and `S3-SERVER-ACCESS-LOGS-BUCKET` with the correct values.__
+
 ```sql
-CREATE EXTERNAL TABLE IF NOT EXISTS s3_access_logs_db.workspaces_logs_eodhp_dev (
+CREATE EXTERNAL TABLE IF NOT EXISTS YOUR_DATABASE.workspaces_logs_eodhp_ENVIRONMENT (
     bucket_owner STRING,
     bucket STRING,
     requestdatetime STRING,
@@ -40,7 +43,7 @@ ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
 WITH SERDEPROPERTIES (
  'input.regex'='([^ ]*) ([^ ]*) \\[([^]]*)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*)(?: ([^ ]*))?.*$'
 )
-LOCATION 's3://REPLACE-WITH-THE-S3-SERVER-ACCESS-LOGS/';
+LOCATION 's3://S3-SERVER-ACCESS-LOGS-BUCKET/';
 ```
 
 Test that the table is working by running the following SQL:
