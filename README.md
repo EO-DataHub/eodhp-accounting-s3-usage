@@ -2,13 +2,59 @@
 
 This collects accounting events relating to S3 storage use by workspaces.
 
-This serves as a template repository for new UKEODHP Python-base software components.
+Before running this, ensure that you have setup the necessary prerequisites:
+- The workspaces bucket has got "Server access logging" enabled
+- The Athena database and table has been set up.
 
+To set up the Athena table, run the following SQL:
+
+```sql
+CREATE EXTERNAL TABLE IF NOT EXISTS s3_access_logs_db.workspaces_logs_eodhp_dev (
+    bucket_owner STRING,
+    bucket STRING,
+    requestdatetime STRING,
+    remoteip STRING,
+    requester STRING,
+    requestid STRING,
+    operation STRING,
+    key STRING,
+    request_uri STRING,
+    httpstatus STRING,
+    errorcode STRING,
+    bytessent BIGINT,
+    objectsize BIGINT,
+    totaltime STRING,
+    turnaroundtime STRING,
+    referrer STRING,
+    useragent STRING,
+    versionid STRING,
+    hostid STRING,
+    sigv STRING,
+    ciphersuite STRING,
+    authtype STRING,
+    endpoint STRING,
+    tlsversion STRING,
+    accesspointarn STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+WITH SERDEPROPERTIES (
+ 'input.regex'='([^ ]*) ([^ ]*) \\[([^]]*)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*)(?: ([^ ]*))?.*$'
+)
+LOCATION 's3://REPLACE-WITH-THE-S3-SERVER-ACCESS-LOGS/';
+```
+
+Test that the table is working by running the following SQL:
+
+```sql
+SELECT requestdatetime, operation, key, bytessent, requester, accesspointarn
+FROM YOUR_DATABASE.YOUR_TABLE;
+```
+
+Then you can proceed to test the component.
 ```
 k port-forward -n pulsar svc/pulsar-proxy 6650:6650 # in one terminal
 python -m accounting_s3_usage.sampler --pulsar-url pulsar://localhost:6650 -v --once
 ```
-
 
 # Development of this component
 
