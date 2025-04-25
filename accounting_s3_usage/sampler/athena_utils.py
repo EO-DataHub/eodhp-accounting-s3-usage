@@ -1,5 +1,6 @@
-import boto3
 import time
+
+import boto3
 
 
 def run_athena_query(query, database, output_bucket):

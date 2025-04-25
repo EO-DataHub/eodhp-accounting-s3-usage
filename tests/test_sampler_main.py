@@ -27,7 +27,9 @@ def test_main_scans_dirs(block_size):
         ############## Check results
         calls = (
             mock_getclient()
-            .create_producer(topic="billing-events-consumption-rate-samples", producer_name=any, schema=any)
+            .create_producer(
+                topic="billing-events-consumption-rate-samples", producer_name=any, schema=any
+            )
             .send.call_args_list
         )
 
