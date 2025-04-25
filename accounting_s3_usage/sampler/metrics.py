@@ -25,6 +25,8 @@ def get_prefix_storage_size(bucket_name, prefix):
 def get_access_point_data_transfer(workspace_prefix):
     """
     We mainly care about the object-level operations like GET, PUT, DELETE.
+
+    The query will sum the bytes transferred for GET operations in the last 24 hours.
     """
     query = f"""
     SELECT COALESCE(SUM(bytessent), 0)/1073741824.0 AS total_gb_transferred
@@ -38,6 +40,9 @@ def get_access_point_data_transfer(workspace_prefix):
 
 
 def get_access_point_api_calls(workspace_prefix):
+    """
+    This query will count the number of API calls made with the specified prefix in the last 24 hours.
+    """
     query = f"""
     SELECT COUNT(*) AS total_api_calls
     FROM {ATHENA_DB}.{ATHENA_TABLE}
