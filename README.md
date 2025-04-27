@@ -2,10 +2,21 @@
 
 This collects accounting events relating to S3 storage use by workspaces.
 
+
+## TODO
+- [ ] Add tests for the repository.
+- [ ] Configure the Athena DB and table to be created declaratively.
+- [ ] The S3 buckets that were not initially created with ArgoCD will not update their
+  server access logging configuration. This needs to be done manually or via a script.
+- [ ] We currently need two seperate Pulsar topics because Pulsar doesnt allow producers with different schemas to publish on the same topic.
+
+```
+# TODO: We need to create this declaritively
+```
 Before running this, ensure that you have setup the necessary prerequisites:
-- A bucket to collect the logs in, e.g. `workspaces_logs_eodhp_ENVIRONMENT` (This should be created through Terraform)
-- The actual workspaces bucket has got "Server access logging" enabled and is distrubuting logs to `workspaces_logs_eodhp_ENVIRONMENT`
-- The Athena database and table has been set up (see below)
+- A bucket to collect the logs in, e.g. `workspaces_logs_eodhp_ENVIRONMENT` (This should already be created through ArgoCD)
+- The actual workspaces bucket has got "Server access logging" enabled and is distrubuting logs to `workspaces_logs_eodhp_ENVIRONMENT` (This has also been set in ArgoCD but is not applying to buckets that were originally created without it)
+- The Athena database and table has been set up (see below) (TODO: Needs to be done declaratively)
 
 To set up the Athena table, run the following SQL:
 

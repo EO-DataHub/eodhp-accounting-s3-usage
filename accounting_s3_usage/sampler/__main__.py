@@ -10,10 +10,17 @@ from eodhp_utils.pulsar.messages import (
 )
 from eodhp_utils.runner import log_component_version, setup_logging
 
-from accounting_s3_usage.sampler.messager import S3StorageSamplerMessager, S3UsageSamplerMessager
+from accounting_s3_usage.sampler.messager import (
+    S3StorageSamplerMessager,
+    S3UsageSamplerMessager,
+)
 
 PULSAR_SERVICE_URL = os.getenv("PULSAR_SERVICE_URL", "pulsar://localhost:6650")
+
+# TODO: Currently an issue that we need to have two seperate topics due to the fact we have two different
+# schemas.
 TOPIC_EVENTS = os.getenv("PULSAR_TOPIC", "billing-events")
+TOPIC_STORAGE = os.getenv("PULSAR_TOPIC_STORAGE", "billing-storage-events")
 
 
 @click.command()
@@ -31,7 +38,7 @@ def cli(verbose: int, pulsar_url: str, backfill_days: int, interval: int, once: 
     client = pulsar.Client(pulsar_url)
 
     storage_producer = client.create_producer(
-        topic=TOPIC_EVENTS, schema=generate_billingresourceconsumptionratesample_schema()
+        topic=TOPIC_STORAGE, schema=generate_billingresourceconsumptionratesample_schema()
     )
 
     usage_producer = client.create_producer(

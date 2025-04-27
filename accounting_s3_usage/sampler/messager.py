@@ -4,7 +4,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from eodhp_utils.messagers import Messager, PulsarJSONMessager
-from eodhp_utils.pulsar.messages import BillingEvent, BillingResourceConsumptionRateSample
+from eodhp_utils.pulsar.messages import (
+    BillingEvent,
+    BillingResourceConsumptionRateSample,
+)
 from opentelemetry import baggage, trace
 from opentelemetry.context import attach, detach
 
