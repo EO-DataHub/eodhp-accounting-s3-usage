@@ -3,7 +3,7 @@ import time
 import boto3
 
 
-def run_athena_query(query, database, output_bucket):
+def run_athena_query(query, database, output_bucket) -> float:
     athena = boto3.client("athena")
 
     response = athena.start_query_execution(

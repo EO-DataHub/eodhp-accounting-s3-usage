@@ -15,7 +15,7 @@ from accounting_s3_usage.sampler.messager import (
     S3UsageSamplerMessager,
 )
 
-PULSAR_SERVICE_URL = os.getenv("PULSAR_SERVICE_URL", "pulsar://localhost:6650")
+PULSAR_SERVICE_URL = os.getenv("PULSAR_URL", "pulsar://localhost:6650")
 
 # TODO: Currently an issue that we need to have two seperate topics due to the fact we have two different
 # schemas.
