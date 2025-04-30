@@ -100,90 +100,20 @@ class S3StorageSamplerMessager(
 
 
 class S3UsageSamplerMessager(Messager[Iterator[SampleRequestMsg], BillingEvent]):
-    def send_billing_event(self, workspace, sku, quantity, start, end):
-        event_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"{workspace}-{sku}-{start.isoformat()}")
+    def generate_billing_event(self, request: SampleRequestMsg, sku: str, quantity: float):
+        event_uuid = uuid.uuid5(
+            uuid.NAMESPACE_DNS, f"{request.workspace}-{sku}-{request.interval_start.isoformat()}"
+        )
         event = BillingEvent(
             uuid=str(event_uuid),
-            event_start=start.isoformat() + "Z",
-            event_end=end.isoformat() + "Z",
+            event_start=request.interval_start.isoformat() + "Z",
+            event_end=request.interval_end.isoformat() + "Z",
             sku=sku,
             user=None,
-            workspace=workspace,
+            workspace=request.workspace,
             quantity=round(quantity, 6),
         )
         return Messager.PulsarMessageAction(payload=event)
-
-    def run_periodic(self, backfill_days=3, run_once=False):
-        def sample_usage(interval_start, interval_end):
-            logging.info(f"Collecting S3 usage from {interval_start} to {interval_end}")
-            requests = list(generate_sample_requests(interval_start, interval_end))
-
-            for request_msg in requests:
-                workspace = request_msg.workspace
-
-                data_transfer_gb = get_access_point_data_transfer(
-                    workspace, request_msg.interval_start, request_msg.interval_end
-                )
-                api_calls = get_access_point_api_calls(
-                    workspace, request_msg.interval_start, request_msg.interval_end
-                )
-
-                print(f"======= {workspace} =======")
-                print(f"Time Interval: {request_msg.interval_start} to {request_msg.interval_end}")
-                print(f"Data Transfer: {data_transfer_gb:.6f} GB")
-                print(f"API Calls: {api_calls}")
-                print("============================\n")
-
-                for sku, quantity in [
-                    ("AWS-S3-DATA-TRANSFER-OUT", data_transfer_gb),
-                    ("AWS-S3-API-CALLS", api_calls),
-                ]:
-                    action = self.send_billing_event(
-                        workspace,
-                        sku,
-                        quantity,
-                        request_msg.interval_start,
-                        request_msg.interval_end,
-                    )
-
-                    with tracer.start_as_current_span(
-                        "send_billing_event",
-                        attributes={"workspace": workspace, "sku": sku},
-                    ):
-                        token = attach(baggage.set_baggage("workspace", workspace))
-                        try:
-                            self._runaction(
-                                action, Messager.CatalogueChanges(), Messager.Failures()
-                            )
-                        finally:
-                            detach(token)
-
-        if run_once:
-            interval_end = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
-            interval_start = interval_end - COLLECTION_INTERVAL
-            sample_usage(interval_start, interval_end)
-            return  # Exit immediately after running once
-
-        # Regular periodic sampling
-        next_run_time = (
-            align_to_midnight(datetime.now(timezone.utc)) - COLLECTION_INTERVAL * backfill_days
-        )
-
-        while True:
-            current_time = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
-            interval_end = next_run_time + COLLECTION_INTERVAL
-
-            if interval_end > current_time:
-                sleep_duration = (interval_end - current_time).total_seconds()
-                logging.info(f"Sleeping for {max(sleep_duration, 60)} seconds")
-                time.sleep(max(sleep_duration, 60))
-                continue
-
-            sample_usage(next_run_time, interval_end)
-            next_run_time = interval_end
-
-    def gen_empty_catalogue_message(self, msg):
-        raise NotImplementedError()
 
     def process_msg(self, msgs: Iterator[SampleRequestMsg]) -> Iterable[Messager.Action]:
         for msg in msgs:
@@ -206,8 +136,9 @@ class S3UsageSamplerMessager(Messager[Iterator[SampleRequestMsg], BillingEvent])
                     ("AWS-S3-DATA-TRANSFER-OUT", data_transfer_gb),
                     ("AWS-S3-API-CALLS", api_calls),
                 ]:
-                    yield self.send_billing_event(
-                        msg.workspace, sku, quantity, msg.interval_start, msg.interval_end
-                    )
+                    yield self.generate_billing_event(msg, sku, quantity)
             finally:
                 detach(token)
+
+    def gen_empty_catalogue_message(self, msg):
+        raise NotImplementedError()

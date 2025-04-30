@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 from dataclasses import dataclass
@@ -6,17 +7,17 @@ from typing import Iterable
 
 import boto3
 
+from accounting_s3_usage.sampler.time_utils import align_to_midnight
+
 AWS_PREFIX = os.getenv("AWS_PREFIX", "eodhp-dev-go3awhw0-")
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "workspaces-eodhp-dev")
 
 # we need a slight delay for the server log delivery
 # read more here: https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html#LogDeliveryBestEffort
 LOG_DELAY_BUFFER = timedelta(hours=3)
-# due to the delay, it is safest to sample once a day
-COLLECTION_INTERVAL = timedelta(days=1)
 
 
-@dataclass
+@dataclass(eq=True, frozen=True)
 class SampleRequestMsg:
     workspace: str
     bucket_name: str
@@ -34,38 +35,76 @@ def parse_workspace_prefix(workspace_prefix: str) -> str:
         raise ValueError(f"Invalid workspace prefix: {workspace_prefix}")
 
 
-def generate_sample_requests(interval_start: datetime, interval_end: datetime):
+def generate_workspace_s3_access_point_list():
+    """
+    Generates access point information for the access points used for S3 workspace stores.
+    """
+
+    def is_workspace_store_access_point(ap):
+        return bucket_name == AWS_BUCKET_NAME and access_point_name.startswith(AWS_PREFIX)
+
     s3control = boto3.client("s3control")
     account_id = boto3.client("sts").get_caller_identity()["Account"]
 
     response = s3control.list_access_points(AccountId=account_id)
 
-    for ap in response["AccessPointList"]:
-        bucket_name = ap["Bucket"]
-        access_point_name = ap["Name"]
+    while True:
+        for ap in response["AccessPointList"]:
+            bucket_name = ap["Bucket"]
+            access_point_name = ap["Name"]
 
-        if bucket_name == AWS_BUCKET_NAME and access_point_name.startswith(AWS_PREFIX):
-            logging.info(f"Found access point: {access_point_name} for bucket: {bucket_name}")
-            yield SampleRequestMsg(
-                workspace=parse_workspace_prefix(access_point_name),
-                bucket_name=bucket_name,
-                access_point_name=access_point_name,
-                interval_start=interval_start,
-                interval_end=interval_end,
+            if is_workspace_store_access_point(ap):
+                yield ap
+
+        if response["NextToken"]:
+            response = s3control.list_access_points(
+                AccountId=account_id, NextToken=response["NextToken"]
             )
+        else:
+            return
 
 
-def generate_sample_times(last_end: datetime) -> Iterable[tuple[datetime, datetime]]:
+def generate_sample_requests(
+    access_points: Iterable[dict], intervals: Iterable[tuple[datetime, datetime]]
+) -> Iterable[SampleRequestMsg]:
+    """
+    Generates sample requests, which are requests to the Messagers to generate billing data for
+    a particular workspace object store for a particular time period.
+
+    Requests will be generated for every workspace object store detected by inspecting AWS's API.
+    There will be one such request for every time period given by the `intervals` argument.
+    """
+    for ap, interval in itertools.product(access_points, intervals):
+        logging.info(f"Found access point: {ap=} for interval: {interval=}")
+        yield SampleRequestMsg(
+            workspace=parse_workspace_prefix(ap["Name"]),
+            bucket_name=ap["Bucket"],
+            access_point_name=ap["Name"],
+            interval_start=interval[0],
+            interval_end=interval[1],
+        )
+
+
+def generate_sample_times(
+    last_end: datetime, interval: timedelta
+) -> Iterable[tuple[datetime, datetime]]:
     """
     Generates intervals to sample based on either the end of the last sampled period or a
     timestamp within the period which we should start backfilling from.
     """
-    begin_at = last_end.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
-    end_at = begin_at + COLLECTION_INTERVAL
+    begin_at = align_to_midnight(last_end)
+    end_at = begin_at + interval
     limit = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
 
     while end_at < limit:
         yield ((begin_at, end_at))
 
         begin_at = end_at
-        end_at += COLLECTION_INTERVAL
+        end_at += interval
+
+
+def next_collection_after(after: datetime, interval: timedelta) -> datetime:
+    """
+    When, after `after`, should we next attempt to collect billing data?
+    """
+    return align_to_midnight(after) + interval + LOG_DELAY_BUFFER + timedelta(seconds=1)

@@ -92,6 +92,7 @@ dev = [
   "validate-pyproject[all]",
   "pre-commit",
   "faker",
+  "moto",
 ]
 
 # List URLs that are relevant to your project
