@@ -7,7 +7,7 @@ from typing import Iterable
 
 import boto3
 
-from accounting_s3_usage.sampler.time_utils import align_to_midnight
+from accounting_s3_usage.sampler.time_utils import align_to_interval
 
 AWS_PREFIX = os.getenv("AWS_PREFIX", "eodhp-dev-go3awhw0-")
 AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "workspaces-eodhp-dev")
@@ -92,7 +92,7 @@ def generate_sample_times(
     Generates intervals to sample based on either the end of the last sampled period or a
     timestamp within the period which we should start backfilling from.
     """
-    begin_at = align_to_midnight(last_end)
+    begin_at = align_to_interval(last_end, interval)
     end_at = begin_at + interval
     limit = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
 
@@ -107,4 +107,4 @@ def next_collection_after(after: datetime, interval: timedelta) -> datetime:
     """
     When, after `after`, should we next attempt to collect billing data?
     """
-    return align_to_midnight(after) + interval + LOG_DELAY_BUFFER + timedelta(seconds=1)
+    return align_to_interval(after, interval) + interval + LOG_DELAY_BUFFER + timedelta(seconds=1)

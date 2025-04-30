@@ -1,9 +1,12 @@
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
-def align_to_midnight(dt: datetime) -> datetime:
-    return dt.astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+def align_to_interval(dt: datetime, interval: timedelta) -> datetime:
+    REFERENCE_TIME = datetime(2020, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+    since_reference_time = dt.astimezone(timezone.utc) - REFERENCE_TIME
+    intervals = since_reference_time / interval
+    return REFERENCE_TIME + int(intervals) * interval
 
 
 def wait_until(dt: datetime):

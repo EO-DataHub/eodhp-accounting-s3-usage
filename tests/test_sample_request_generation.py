@@ -3,6 +3,7 @@ from unittest import mock
 
 import botocore.client
 import moto
+import pytest
 
 from accounting_s3_usage.sampler.sample_requests import (
     SampleRequestMsg,
@@ -52,17 +53,45 @@ def test_access_point_list_generation_returns_expected_aps():
         ]
 
 
-def test_sample_time_generation_backfills_from_correct_point():
-    times = next(generate_sample_times(datetime(2024, 1, 2, 11, 43, 00, 00), timedelta(days=1)))
-    assert times[0] == datetime(2024, 1, 2, 00, 00, 00, 00, tzinfo=timezone.utc)
-    assert times[1] == datetime(2024, 1, 3, 00, 00, 00, 00, tzinfo=timezone.utc)
+@pytest.mark.parametrize(
+    "interval, first_two_generated_times",
+    [
+        pytest.param(
+            timedelta(days=1),
+            [
+                datetime(2024, 1, 2, 00, 00, 00, 00, tzinfo=timezone.utc),
+                datetime(2024, 1, 3, 00, 00, 00, 00, tzinfo=timezone.utc),
+            ],
+        ),
+        pytest.param(
+            timedelta(hours=1),
+            [
+                datetime(2024, 1, 2, 11, 00, 00, 00, tzinfo=timezone.utc),
+                datetime(2024, 1, 2, 12, 00, 00, 00, tzinfo=timezone.utc),
+            ],
+        ),
+    ],
+)
+def test_sample_time_generation_backfills_from_correct_point(interval, first_two_generated_times):
+    times = next(generate_sample_times(datetime(2024, 1, 2, 11, 43, 00, 00), interval))
+    assert times[0] == first_two_generated_times[0]
+    assert times[1] == first_two_generated_times[1]
 
 
-def test_sample_time_generation_produces_consecutive_periods():
-    times = list(generate_sample_times(datetime(2024, 1, 2, 00, 00, 00, 00), timedelta(days=1)))
+@pytest.mark.parametrize(
+    "interval, next_time",
+    [
+        pytest.param(timedelta(days=1), datetime(2024, 1, 3, 00, 00, 00, tzinfo=timezone.utc)),
+        pytest.param(timedelta(hours=1), datetime(2024, 1, 2, 1, 00, 00, tzinfo=timezone.utc)),
+        pytest.param(timedelta(minutes=30), datetime(2024, 1, 2, 0, 30, 00, tzinfo=timezone.utc)),
+        pytest.param(timedelta(seconds=300), datetime(2024, 1, 2, 0, 5, 00, tzinfo=timezone.utc)),
+    ],
+)
+def test_sample_time_generation_produces_consecutive_periods(interval, next_time):
+    times = list(generate_sample_times(datetime(2024, 1, 2, 00, 00, 00), interval))
 
     assert times[0][0] == datetime(2024, 1, 2, 00, 00, 00, 00, tzinfo=timezone.utc)
-    assert times[0][1] == datetime(2024, 1, 3, 00, 00, 00, 00, tzinfo=timezone.utc)
+    assert times[0][1] == next_time
 
     assert times[1][0] == times[0][1]
     assert times[2][0] == times[1][1]
