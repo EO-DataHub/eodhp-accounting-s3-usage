@@ -1,10 +1,8 @@
-import logging
-import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Iterable, Iterator
 
-from eodhp_utils.messagers import Messager, PulsarJSONMessager
+from eodhp_utils.messagers import Messager
 from eodhp_utils.pulsar.messages import (
     BillingEvent,
     BillingResourceConsumptionRateSample,
@@ -17,28 +15,21 @@ from .metrics import (
     get_access_point_data_transfer,
     get_prefix_storage_size,
 )
-from .sample_requests import SampleRequestMsg, generate_sample_requests
-from .time_utils import align_to_midnight
+from .sample_requests import SampleRequestMsg
 
 tracer = trace.get_tracer("s3-usage-sampler")
 
-# we need a slight delay for the server log delivery
-# read more here: https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html#LogDeliveryBestEffort
-LOG_DELAY_BUFFER = timedelta(hours=3)
-# due to the delay, it is safest to sample once a day
-COLLECTION_INTERVAL = timedelta(days=1)
-
 
 class S3StorageSamplerMessager(
-    PulsarJSONMessager[BillingResourceConsumptionRateSample, BillingResourceConsumptionRateSample]
+    Messager[Iterator[SampleRequestMsg], BillingResourceConsumptionRateSample]
 ):
-    def send_storage_sample(self, workspace, storage_gb, sample_time):
+    def generate_storage_sample(self, workspace, storage_gb, sample_time):
         sample_uuid = uuid.uuid5(
             uuid.NAMESPACE_DNS, f"{workspace}-AWS-S3-STORAGE-{sample_time.isoformat()}"
         )
         sample = BillingResourceConsumptionRateSample(
             uuid=str(sample_uuid),
-            sample_time=sample_time.isoformat() + "Z",
+            sample_time=sample_time.isoformat(),
             sku="AWS-S3-STORAGE",
             user=None,
             workspace=workspace,
@@ -46,13 +37,14 @@ class S3StorageSamplerMessager(
         )
         return Messager.PulsarMessageAction(payload=sample)
 
-    def run_periodic(self, run_once=False):
-        def sample_storage(sample_time):
-            requests = list(generate_sample_requests())
+    def process_msg(self, msgs: Iterator[SampleRequestMsg]) -> Iterable[Messager.Action]:
+        for msg in msgs:
+            token = attach(baggage.set_baggage("workspace", msg.workspace))
 
-            for request_msg in requests:
-                workspace = request_msg.workspace
-                bucket_name = request_msg.bucket_name
+            try:
+                workspace = msg.workspace
+                bucket_name = msg.bucket_name
+                sample_time = datetime.now(timezone.utc)
                 storage_gb = get_prefix_storage_size(bucket_name, workspace)
 
                 print(f"======= {workspace} =======")
@@ -60,43 +52,12 @@ class S3StorageSamplerMessager(
                 print(f"Storage Size: {storage_gb:.6f} GB")
                 print("============================\n")
 
-                if storage_gb is not None:
-                    action = self.send_storage_sample(workspace, storage_gb, sample_time)
-                    with tracer.start_as_current_span(
-                        "send_storage_event",
-                        attributes={"workspace": workspace, "sku": "AWS-S3-STORAGE"},
-                    ):
-                        token = attach(baggage.set_baggage("workspace", workspace))
-                        try:
-                            self._runaction(
-                                action, Messager.CatalogueChanges(), Messager.Failures()
-                            )
-                        finally:
-                            detach(token)
+                yield self.generate_storage_sample(workspace, storage_gb, sample_time)
+            finally:
+                detach(token)
 
-        if run_once:
-            interval_end = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
-            logging.info(f"Running immediate storage sampling at {interval_end.isoformat()}")
-            sample_storage(interval_end)
-        else:
-            next_run_time = align_to_midnight(datetime.now(timezone.utc))
-            logging.info(f"Next run time: {next_run_time}")
-
-            while True:
-                current_time = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
-                interval_end = next_run_time + COLLECTION_INTERVAL
-
-                if interval_end > current_time:
-                    sleep_duration = (interval_end - current_time).total_seconds()
-                    time.sleep(max(sleep_duration, 60))
-                    continue
-
-                logging.info(f"Collecting S3 storage usage at {interval_end}")
-                sample_storage(interval_end)
-                next_run_time = interval_end
-
-    def process_payload(self, _: BillingEvent):
-        return []
+    def gen_empty_catalogue_message(self, msg):
+        raise NotImplementedError()
 
 
 class S3UsageSamplerMessager(Messager[Iterator[SampleRequestMsg], BillingEvent]):
