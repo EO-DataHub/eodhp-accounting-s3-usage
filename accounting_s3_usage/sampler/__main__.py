@@ -10,7 +10,7 @@ from eodhp_utils.pulsar.messages import (
     generate_billingevent_schema,
     generate_billingresourceconsumptionratesample_schema,
 )
-from eodhp_utils.runner import log_component_version, setup_logging
+from eodhp_utils.runner import GeneratorRunner, log_component_version, setup_logging
 
 from accounting_s3_usage.sampler.messager import (
     S3AccessBillingEventMessager,
@@ -52,8 +52,19 @@ def generate_billing_events(last_generation: datetime, interval: timedelta) -> M
             topic=TOPIC_EVENTS, schema=generate_billingevent_schema()
         )
 
-        storage_messager = S3StorageSamplerMessager(producer=storage_producer)
-        usage_messager = S3AccessBillingEventMessager(producer=usage_producer)
+        storage_messager = GeneratorRunner(
+            messager=S3StorageSamplerMessager(producer=storage_producer),
+            threads=4,
+            batch_size=2,
+            name="storage-sampler",
+        )
+
+        usage_messager = GeneratorRunner(
+            messager=S3AccessBillingEventMessager(producer=usage_producer),
+            threads=4,
+            batch_size=2,
+            name="access-collector",
+        )
 
     ap_list = list(generate_workspace_s3_access_point_list())
 
@@ -100,6 +111,10 @@ def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool)
         case _:
             logging.fatal("Failed to parse --interval")
             sys.exit(2)
+
+    logging.info(
+        f"S3 accounting collector starting with interval {interval}. Back-filling {backfill} intervals."
+    )
 
     global client
     client = pulsar.Client(pulsar_url)

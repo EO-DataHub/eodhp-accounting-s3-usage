@@ -88,8 +88,8 @@ class S3AccessBillingEventMessager(
         )
         event = BillingEvent(
             uuid=str(event_uuid),
-            event_start=request.interval_start.isoformat() + "Z",
-            event_end=request.interval_end.isoformat() + "Z",
+            event_start=request.interval_start.isoformat(),
+            event_end=request.interval_end.isoformat(),
             sku=sku,
             user=None,
             workspace=request.workspace,

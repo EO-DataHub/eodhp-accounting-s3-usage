@@ -175,13 +175,13 @@ rpds-py==0.24.0
     # via
     #   jsonschema
     #   referencing
-ruff==0.11.7
+ruff==0.11.8
     # via eodhp-accounting-s3-usage (pyproject.toml)
 s3transfer==0.12.0
     # via boto3
 six==1.17.0
     # via python-dateutil
-trove-classifiers==2025.4.28.22
+trove-classifiers==2025.5.1.12
     # via validate-pyproject
 typing-extensions==4.13.2
     # via opentelemetry-sdk

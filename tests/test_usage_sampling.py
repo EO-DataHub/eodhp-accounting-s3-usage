@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest import mock
 
 import pytest
@@ -34,14 +34,14 @@ def test_data_transfer_and_api_calls_correctly_calculated_from_athena_results(sa
                 GenerateAccessBillingEventRequestMsg(
                     workspace="workspace1",
                     bucket_name="bucket1",
-                    interval_start=datetime(2025, 2, 2, 12, 00, 00),
-                    interval_end=datetime(2025, 2, 2, 13, 00, 00),
+                    interval_start=datetime(2025, 2, 2, 12, 00, 00, tzinfo=timezone.utc),
+                    interval_end=datetime(2025, 2, 2, 13, 00, 00, tzinfo=timezone.utc),
                 ),
                 GenerateAccessBillingEventRequestMsg(
                     workspace="workspace2",
                     bucket_name="bucket1",
-                    interval_start=datetime(2025, 2, 2, 13, 00, 00),
-                    interval_end=datetime(2025, 2, 2, 14, 00, 00),
+                    interval_start=datetime(2025, 2, 2, 13, 00, 00, tzinfo=timezone.utc),
+                    interval_end=datetime(2025, 2, 2, 14, 00, 00, tzinfo=timezone.utc),
                 ),
             ]
         )
@@ -59,15 +59,25 @@ def test_data_transfer_and_api_calls_correctly_calculated_from_athena_results(sa
             f"{action.payload.workspace}-{action.payload.sku}": action.payload for action in actions
         }
 
-        assert payloads["workspace1-AWS-S3-DATA-TRANSFER-OUT"].event_start == "2025-02-02T12:00:00Z"
-        assert payloads["workspace1-AWS-S3-API-CALLS"].event_start == "2025-02-02T12:00:00Z"
-        assert payloads["workspace2-AWS-S3-DATA-TRANSFER-OUT"].event_start == "2025-02-02T13:00:00Z"
-        assert payloads["workspace2-AWS-S3-API-CALLS"].event_start == "2025-02-02T13:00:00Z"
+        assert (
+            payloads["workspace1-AWS-S3-DATA-TRANSFER-OUT"].event_start
+            == "2025-02-02T12:00:00+00:00"
+        )
+        assert payloads["workspace1-AWS-S3-API-CALLS"].event_start == "2025-02-02T12:00:00+00:00"
+        assert (
+            payloads["workspace2-AWS-S3-DATA-TRANSFER-OUT"].event_start
+            == "2025-02-02T13:00:00+00:00"
+        )
+        assert payloads["workspace2-AWS-S3-API-CALLS"].event_start == "2025-02-02T13:00:00+00:00"
 
-        assert payloads["workspace1-AWS-S3-DATA-TRANSFER-OUT"].event_end == "2025-02-02T13:00:00Z"
-        assert payloads["workspace1-AWS-S3-API-CALLS"].event_end == "2025-02-02T13:00:00Z"
-        assert payloads["workspace2-AWS-S3-DATA-TRANSFER-OUT"].event_end == "2025-02-02T14:00:00Z"
-        assert payloads["workspace2-AWS-S3-API-CALLS"].event_end == "2025-02-02T14:00:00Z"
+        assert (
+            payloads["workspace1-AWS-S3-DATA-TRANSFER-OUT"].event_end == "2025-02-02T13:00:00+00:00"
+        )
+        assert payloads["workspace1-AWS-S3-API-CALLS"].event_end == "2025-02-02T13:00:00+00:00"
+        assert (
+            payloads["workspace2-AWS-S3-DATA-TRANSFER-OUT"].event_end == "2025-02-02T14:00:00+00:00"
+        )
+        assert payloads["workspace2-AWS-S3-API-CALLS"].event_end == "2025-02-02T14:00:00+00:00"
 
         assert payloads["workspace1-AWS-S3-DATA-TRANSFER-OUT"].quantity == 42.3
         assert payloads["workspace1-AWS-S3-API-CALLS"].quantity == 314
