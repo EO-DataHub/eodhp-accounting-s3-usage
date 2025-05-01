@@ -44,6 +44,7 @@ def generate_billing_events(last_generation: datetime, interval: timedelta) -> M
     global client
 
     if not storage_messager or not usage_messager:
+        assert client is not None
         storage_producer = client.create_producer(
             topic=TOPIC_STORAGE, schema=generate_billingresourceconsumptionratesample_schema()
         )
@@ -97,30 +98,30 @@ def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool)
     interval_num = int(interval[:-1])
     match interval[-1]:
         case "s":
-            interval = timedelta(seconds=interval_num)
+            interval_td = timedelta(seconds=interval_num)
 
         case "m":
-            interval = timedelta(minutes=interval_num)
+            interval_td = timedelta(minutes=interval_num)
 
         case "h":
-            interval = timedelta(hours=interval_num)
+            interval_td = timedelta(hours=interval_num)
 
         case "d":
-            interval = timedelta(days=interval_num)
+            interval_td = timedelta(days=interval_num)
 
         case _:
             logging.fatal("Failed to parse --interval")
             sys.exit(2)
 
     logging.info(
-        f"S3 accounting collector starting with interval {interval}. Back-filling {backfill} intervals."
+        f"S3 accounting collector starting with interval {interval_td}. Back-filling {backfill} intervals."
     )
 
     global client
     client = pulsar.Client(pulsar_url)
 
     try:
-        exit_code = main_loop(interval * backfill, interval, once)
+        exit_code = main_loop(interval_td * backfill, interval_td, once)
         sys.exit(exit_code)
     except KeyboardInterrupt:
         logging.info("Stopping S3 Usage Sampler.")
