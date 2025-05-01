@@ -13,12 +13,13 @@ from eodhp_utils.pulsar.messages import (
 from eodhp_utils.runner import log_component_version, setup_logging
 
 from accounting_s3_usage.sampler.messager import (
+    S3AccessBillingEventMessager,
     S3StorageSamplerMessager,
-    S3UsageSamplerMessager,
 )
 from accounting_s3_usage.sampler.sample_requests import (
-    generate_sample_requests,
+    generate_access_billing_requests,
     generate_sample_times,
+    generate_storage_sample_requests,
     generate_workspace_s3_access_point_list,
     next_collection_after,
 )
@@ -52,17 +53,18 @@ def generate_billing_events(last_generation: datetime, interval: timedelta) -> M
         )
 
         storage_messager = S3StorageSamplerMessager(producer=storage_producer)
-        usage_messager = S3UsageSamplerMessager(producer=usage_producer)
+        usage_messager = S3AccessBillingEventMessager(producer=usage_producer)
 
-    sample_requests = list(
-        generate_sample_requests(
-            generate_workspace_s3_access_point_list(),
-            generate_sample_times(last_generation, interval),
-        )
+    ap_list = list(generate_workspace_s3_access_point_list())
+
+    access_billing_requests = generate_access_billing_requests(
+        ap_list,
+        generate_sample_times(last_generation, interval),
     )
 
-    storage_failures = storage_messager.consume(sample_requests)
-    usage_failures = usage_messager.consume(sample_requests)
+    usage_failures = usage_messager.consume(access_billing_requests)
+    storage_failures = storage_messager.consume(generate_storage_sample_requests(ap_list))
+
     return storage_failures.add(usage_failures)
 
 

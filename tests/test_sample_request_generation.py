@@ -6,9 +6,11 @@ import moto
 import pytest
 
 from accounting_s3_usage.sampler.sample_requests import (
-    SampleRequestMsg,
-    generate_sample_requests,
+    GenerateAccessBillingEventRequestMsg,
+    SampleStorageUseRequestMsg,
+    generate_access_billing_requests,
     generate_sample_times,
+    generate_storage_sample_requests,
     generate_workspace_s3_access_point_list,
 )
 
@@ -124,14 +126,16 @@ def test_sample_time_generation_stops_at_buffer_time():
 
 def test_sample_request_generation_produces_no_requests_for_empty_time_interval():
     requests = list(
-        generate_sample_requests([{"Bucket": "ws-bucket", "Name": "aws-prefix-workspace1-s3"}], [])
+        generate_access_billing_requests(
+            [{"Bucket": "ws-bucket", "Name": "aws-prefix-workspace1-s3"}], []
+        )
     )
     assert not requests
 
 
 def test_sample_request_generation_produces_no_requests_for_empty_ap_list():
     requests = list(
-        generate_sample_requests(
+        generate_access_billing_requests(
             [],
             [
                 datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc),
@@ -159,17 +163,33 @@ def test_sample_request_generation_produces_correct_requests_for_time_intervals(
         ]
 
         requests = set(
-            generate_sample_requests(generate_workspace_s3_access_point_list(), intervals)
+            generate_access_billing_requests(generate_workspace_s3_access_point_list(), intervals)
         )
 
         assert requests == {
-            SampleRequestMsg(
+            GenerateAccessBillingEventRequestMsg(
                 workspace=workspace,
                 bucket_name="ws-bucket",
-                access_point_name=f"aws-prefix-{workspace}-s3",
                 interval_start=interval[0],
                 interval_end=interval[1],
             )
             for workspace in ["workspace1", "workspace3", "workspace4"]
             for interval in intervals
+        }
+
+
+@mock.patch("accounting_s3_usage.sampler.sample_requests.AWS_BUCKET_NAME", "ws-bucket")
+@mock.patch("accounting_s3_usage.sampler.sample_requests.AWS_PREFIX", "aws-prefix-")
+@moto.mock_aws
+def test_storage_sample_request_generation_produces_correct_requests():
+    with mock.patch("botocore.client.BaseClient._make_api_call", new=mock_make_api_call):
+        requests = set(generate_storage_sample_requests(generate_workspace_s3_access_point_list()))
+
+        assert requests == {
+            SampleStorageUseRequestMsg(
+                workspace=workspace,
+                bucket_name="ws-bucket",
+                access_point_name=f"aws-prefix-{workspace}-s3",
+            )
+            for workspace in ["workspace1", "workspace3", "workspace4"]
         }

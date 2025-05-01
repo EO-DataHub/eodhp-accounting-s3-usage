@@ -4,7 +4,7 @@ from unittest import mock
 import pytest
 
 from accounting_s3_usage.sampler.messager import S3StorageSamplerMessager
-from accounting_s3_usage.sampler.sample_requests import SampleRequestMsg
+from accounting_s3_usage.sampler.sample_requests import SampleStorageUseRequestMsg
 
 
 @pytest.fixture
@@ -32,19 +32,15 @@ def test_storage_sample_correctly_calculated_from_computed_storage_use(sampler_m
 
         actions = sampler_messager.process_msg(
             [
-                SampleRequestMsg(
+                SampleStorageUseRequestMsg(
                     workspace="workspace1",
                     bucket_name="bucket1",
                     access_point_name="ap1",
-                    interval_start=datetime(2025, 2, 2, 12, 00, 00),
-                    interval_end=datetime(2025, 2, 2, 13, 00, 00),
                 ),
-                SampleRequestMsg(
+                SampleStorageUseRequestMsg(
                     workspace="workspace2",
                     bucket_name="bucket1",
                     access_point_name="ap2",
-                    interval_start=datetime(2025, 2, 2, 13, 00, 00),
-                    interval_end=datetime(2025, 2, 2, 14, 00, 00),
                 ),
             ]
         )

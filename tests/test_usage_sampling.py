@@ -3,13 +3,15 @@ from unittest import mock
 
 import pytest
 
-from accounting_s3_usage.sampler.messager import S3UsageSamplerMessager
-from accounting_s3_usage.sampler.sample_requests import SampleRequestMsg
+from accounting_s3_usage.sampler.messager import S3AccessBillingEventMessager
+from accounting_s3_usage.sampler.sample_requests import (
+    GenerateAccessBillingEventRequestMsg,
+)
 
 
 @pytest.fixture
 def sampler_messager():
-    return S3UsageSamplerMessager()
+    return S3AccessBillingEventMessager()
 
 
 def test_no_logged_requests_means_messager_produces_no_messages(sampler_messager):
@@ -29,17 +31,15 @@ def test_data_transfer_and_api_calls_correctly_calculated_from_athena_results(sa
 
         actions = sampler_messager.process_msg(
             [
-                SampleRequestMsg(
+                GenerateAccessBillingEventRequestMsg(
                     workspace="workspace1",
                     bucket_name="bucket1",
-                    access_point_name="ap1",
                     interval_start=datetime(2025, 2, 2, 12, 00, 00),
                     interval_end=datetime(2025, 2, 2, 13, 00, 00),
                 ),
-                SampleRequestMsg(
+                GenerateAccessBillingEventRequestMsg(
                     workspace="workspace2",
                     bucket_name="bucket1",
-                    access_point_name="ap2",
                     interval_start=datetime(2025, 2, 2, 13, 00, 00),
                     interval_end=datetime(2025, 2, 2, 14, 00, 00),
                 ),
@@ -87,10 +87,9 @@ def test_dup_sample_request_result_in_msgs_with_same_uuid(sampler_messager):
 
         actions = sampler_messager.process_msg(
             [
-                SampleRequestMsg(
+                GenerateAccessBillingEventRequestMsg(
                     workspace="workspace1",
                     bucket_name="bucket1",
-                    access_point_name="ap1",
                     interval_start=datetime(2025, 2, 2, 12, 00, 00),
                     interval_end=datetime(2025, 2, 2, 13, 00, 00),
                 ),

@@ -15,14 +15,24 @@ from .metrics import (
     get_access_point_data_transfer,
     get_prefix_storage_size,
 )
-from .sample_requests import SampleRequestMsg
+from .sample_requests import (
+    GenerateAccessBillingEventRequestMsg,
+    SampleStorageUseRequestMsg,
+)
 
 tracer = trace.get_tracer("s3-usage-sampler")
 
 
 class S3StorageSamplerMessager(
-    Messager[Iterator[SampleRequestMsg], BillingResourceConsumptionRateSample]
+    Messager[Iterator[SampleStorageUseRequestMsg], BillingResourceConsumptionRateSample]
 ):
+    """
+    This generates resource consumption rate samples (storage space consumption samples) for
+    workspace object stores.
+
+    Historical samples cannot be generated - we can only sample usage right now.
+    """
+
     def generate_storage_sample(self, workspace, storage_gb, sample_time):
         sample_uuid = uuid.uuid5(
             uuid.NAMESPACE_DNS, f"{workspace}-AWS-S3-STORAGE-{sample_time.isoformat()}"
@@ -37,7 +47,7 @@ class S3StorageSamplerMessager(
         )
         return Messager.PulsarMessageAction(payload=sample)
 
-    def process_msg(self, msgs: Iterator[SampleRequestMsg]) -> Iterable[Messager.Action]:
+    def process_msg(self, msgs: Iterator[SampleStorageUseRequestMsg]) -> Iterable[Messager.Action]:
         for msg in msgs:
             token = attach(baggage.set_baggage("workspace", msg.workspace))
 
@@ -60,8 +70,19 @@ class S3StorageSamplerMessager(
         raise NotImplementedError()
 
 
-class S3UsageSamplerMessager(Messager[Iterator[SampleRequestMsg], BillingEvent]):
-    def generate_billing_event(self, request: SampleRequestMsg, sku: str, quantity: float):
+class S3AccessBillingEventMessager(
+    Messager[Iterator[GenerateAccessBillingEventRequestMsg], BillingEvent]
+):
+    """
+    This generates BillingEvents for the cost of API calls and data transfer from workspace
+    object stores.
+
+    This can generate events for any specified period in the past.
+    """
+
+    def generate_billing_event(
+        self, request: GenerateAccessBillingEventRequestMsg, sku: str, quantity: float
+    ):
         event_uuid = uuid.uuid5(
             uuid.NAMESPACE_DNS, f"{request.workspace}-{sku}-{request.interval_start.isoformat()}"
         )
@@ -76,7 +97,9 @@ class S3UsageSamplerMessager(Messager[Iterator[SampleRequestMsg], BillingEvent])
         )
         return Messager.PulsarMessageAction(payload=event)
 
-    def process_msg(self, msgs: Iterator[SampleRequestMsg]) -> Iterable[Messager.Action]:
+    def process_msg(
+        self, msgs: Iterator[GenerateAccessBillingEventRequestMsg]
+    ) -> Iterable[Messager.Action]:
         for msg in msgs:
             token = attach(baggage.set_baggage("workspace", msg.workspace))
             try:
