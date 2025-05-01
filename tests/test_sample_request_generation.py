@@ -23,7 +23,6 @@ def mock_make_api_call(self, operation_name, kwarg):
                 "AccessPointList": [
                     {"Bucket": "ws-bucket", "Name": "aws-prefix-workspace4-s3"},
                 ],
-                "NextToken": None,
             }
         else:
             # Page 1

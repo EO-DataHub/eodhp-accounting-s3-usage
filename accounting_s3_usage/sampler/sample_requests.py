@@ -9,8 +9,8 @@ import boto3
 
 from accounting_s3_usage.sampler.time_utils import align_to_interval
 
-AWS_PREFIX = os.getenv("AWS_PREFIX", "eodhp-dev-go3awhw0-")
-AWS_BUCKET_NAME = os.getenv("AWS_BUCKET_NAME", "workspaces-eodhp-dev")
+AWS_PREFIX = os.getenv("AWS_WORKSPACE_S3_ACCESS_POINT_PREFIX", "eodhp-dev-go3awhw0-")
+AWS_BUCKET_NAME = os.getenv("AWS_WORKSPACE_BUCKET_NAME", "workspaces-eodhp-dev")
 
 # we need a slight delay for the server log delivery
 # read more here: https://docs.aws.amazon.com/AmazonS3/latest/userguide/ServerLogs.html#LogDeliveryBestEffort
@@ -56,7 +56,7 @@ def generate_workspace_s3_access_point_list():
             if is_workspace_store_access_point(ap):
                 yield ap
 
-        if response["NextToken"]:
+        if response.get("NextToken"):
             response = s3control.list_access_points(
                 AccountId=account_id, NextToken=response["NextToken"]
             )
