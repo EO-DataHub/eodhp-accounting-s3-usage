@@ -29,7 +29,7 @@ PULSAR_SERVICE_URL = os.getenv("PULSAR_URL", "pulsar://localhost:6650")
 # TODO: Currently an issue that we need to have two seperate topics due to the fact we have two different
 # schemas.
 TOPIC_EVENTS = os.getenv("PULSAR_TOPIC", "billing-events")
-TOPIC_STORAGE = os.getenv("PULSAR_TOPIC_STORAGE", "billing-storage-events")
+TOPIC_STORAGE = os.getenv("PULSAR_TOPIC_STORAGE", "billing-events-consumption-rate-samples")
 
 client = None
 storage_messager = None
