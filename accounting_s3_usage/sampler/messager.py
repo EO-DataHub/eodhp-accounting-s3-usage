@@ -1,7 +1,9 @@
 import uuid
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Iterable, Iterator
 
+from eodhp_utils.aws.egress_classifier import AWSIPClassifier, EgressClass
 from eodhp_utils.messagers import Messager
 from eodhp_utils.pulsar.messages import (
     BillingEvent,
@@ -80,6 +82,11 @@ class S3AccessBillingEventMessager(
     This can generate events for any specified period in the past.
     """
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self._aws_ip_classifier = AWSIPClassifier()
+
     def generate_billing_event(
         self, request: GenerateAccessBillingEventRequestMsg, sku: str, quantity: float
     ):
@@ -103,23 +110,38 @@ class S3AccessBillingEventMessager(
         for msg in msgs:
             token = attach(baggage.set_baggage("workspace", msg.workspace))
             try:
-                data_transfer_gb = get_access_point_data_transfer(
+                sku_quantities = defaultdict(lambda: 0)
+
+                data_transfer_by_destination = get_access_point_data_transfer(
                     msg.workspace, msg.interval_start, msg.interval_end
                 )
-                api_calls = get_access_point_api_calls(
+
+                for destination, transferred in data_transfer_by_destination:
+                    if destination is None or destination == "-":
+                        # It's not obvious what "-" means in the S3 logs but it's often present.
+                        # None has not been observed and is here to be defensive.
+                        continue
+
+                    print(f"{destination=}, {transferred=}")
+                    egress_type = self._aws_ip_classifier.classify(destination)
+                    sku = {
+                        EgressClass.REGION: "AWS-S3-DATA-TRANSFER-OUT-REGION",
+                        EgressClass.INTERREGION: "AWS-S3-DATA-TRANSFER-OUT-INTERREGION",
+                        EgressClass.INTERNET: "AWS-S3-DATA-TRANSFER-OUT-INTERNET",
+                    }[egress_type]
+
+                    sku_quantities[sku] += float(transferred)
+
+                sku_quantities["AWS-S3-API-CALLS"] = get_access_point_api_calls(
                     msg.workspace, msg.interval_start, msg.interval_end
                 )
 
                 print(f"======= {msg.workspace} =======")
                 print(f"Time Interval: {msg.interval_start} to {msg.interval_end}")
-                print(f"Data Transfer: {data_transfer_gb:.6f} GB")
-                print(f"API Calls: {api_calls}")
+                print(f"{sku_quantities}")
                 print("============================\n")
 
-                for sku, quantity in [
-                    ("AWS-S3-DATA-TRANSFER-OUT", data_transfer_gb),
-                    ("AWS-S3-API-CALLS", api_calls),
-                ]:
+                for sku, quantity in sku_quantities.items():
                     yield self.generate_billing_event(msg, sku, quantity)
             finally:
                 detach(token)

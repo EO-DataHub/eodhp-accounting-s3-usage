@@ -1,9 +1,10 @@
 import os
 from datetime import datetime
+from typing import Generator
 
 import boto3
 
-from .athena_utils import run_athena_query
+from .athena_utils import run_long_result_athena_query, run_single_result_athena_query
 
 ATHENA_DB = os.getenv("ATHENA_DB", "s3_access_logs_db")
 ATHENA_OUTPUT_BUCKET = os.getenv("ATHENA_OUTPUT_BUCKET", "workspaces-logs-eodhp-dev")
@@ -30,19 +31,22 @@ def get_prefix_storage_size(bucket_name, prefix):
     return size_gb
 
 
-def get_access_point_data_transfer(workspace_prefix, start_time: datetime, end_time: datetime):
+def get_access_point_data_transfer(
+    workspace_prefix, start_time: datetime, end_time: datetime
+) -> Generator[tuple[str, str]]:
     query = f"""
-    SELECT COALESCE(SUM(bytessent), 0)/1073741824.0 AS total_gb_transferred
+    SELECT remoteip, COALESCE(SUM(bytessent), 0)/1073741824.0 AS total_gb_transferred
     FROM {ATHENA_DB}.{ATHENA_TABLE}
     WHERE operation = 'REST.GET.OBJECT'
       AND key LIKE '{workspace_prefix}/%'
       AND parse_datetime(requestdatetime, 'dd/MMM/yyyy:HH:mm:ss Z')
           BETWEEN TIMESTAMP '{format_datetime(start_time)}' AND TIMESTAMP '{format_datetime(end_time)}'
+    GROUP BY remoteip
     """
-    return run_athena_query(query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)
+    return run_long_result_athena_query(query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)
 
 
-def get_access_point_api_calls(workspace_prefix, start_time: datetime, end_time: datetime):
+def get_access_point_api_calls(workspace_prefix, start_time: datetime, end_time: datetime) -> float:
     query = f"""
     SELECT COUNT(*) AS total_api_calls FROM (
         SELECT requestid FROM {ATHENA_DB}.{ATHENA_TABLE}
@@ -58,4 +62,4 @@ def get_access_point_api_calls(workspace_prefix, start_time: datetime, end_time:
             BETWEEN TIMESTAMP '{format_datetime(start_time)}' AND TIMESTAMP '{format_datetime(end_time)}'
     )
     """
-    return run_athena_query(query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)
+    return run_single_result_athena_query(query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)
