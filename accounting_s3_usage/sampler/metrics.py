@@ -37,8 +37,7 @@ def get_access_point_data_transfer(
     query = f"""
     SELECT remoteip, COALESCE(SUM(bytessent), 0)/1073741824.0 AS total_gb_transferred
     FROM {ATHENA_DB}.{ATHENA_TABLE}
-    WHERE operation = 'REST.GET.OBJECT'
-      AND key LIKE '{workspace_prefix}/%'
+    WHERE key LIKE '{workspace_prefix}/%'
       AND parse_datetime(requestdatetime, 'dd/MMM/yyyy:HH:mm:ss Z')
           BETWEEN TIMESTAMP '{format_datetime(start_time)}' AND TIMESTAMP '{format_datetime(end_time)}'
     GROUP BY remoteip

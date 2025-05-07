@@ -67,4 +67,11 @@ def run_long_result_athena_query(query, database, output_bucket, page_size=100) 
                 # Each row is of this form:
                 #   {'Data': [{'VarCharValue': '-'}, {'VarCharValue': '0.008852269500494003'}]}
                 # where 'Data' and 'VarCharValue' are fixed boilerplate.
-                yield tuple(map(lambda d: d["VarCharValue"], row["Data"]))
+                #
+                # Null values (or '-' in the logs, such as for bytessent with PUTs) come out as
+                # '{}'. For example:
+                #   {'Data': [{'VarCharValue': '-'}, {}]}
+                # We ignore rows like this.
+                result_row = tuple(map(lambda d: d.get("VarCharValue"), row["Data"]))
+                if all(map(lambda d: d is not None, result_row)):
+                    yield result_row

@@ -118,7 +118,11 @@ class S3AccessBillingEventMessager(
 
                 for destination, transferred in data_transfer_by_destination:
                     if destination is None or destination == "-":
-                        # It's not obvious what "-" means in the S3 logs but it's often present.
+                        # "-" is used as the remote IP when CloudFront accesses S3. We charge
+                        # for data transfer from CloudFront separately so it's important we
+                        # ignore these. It's not obvious in what other circumstances it might be
+                        # "-"
+                        #
                         # None has not been observed and is here to be defensive.
                         continue
 
