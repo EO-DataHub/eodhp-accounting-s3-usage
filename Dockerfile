@@ -7,7 +7,7 @@ RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update -y && apt-get upgrade -y \
-    && apt-get install --yes --quiet git
+    && apt-get install --yes --quiet git g++
 
 WORKDIR /accounting-s3-usage
 ADD LICENSE requirements.txt ./
