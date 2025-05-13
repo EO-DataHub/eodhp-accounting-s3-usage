@@ -114,11 +114,11 @@ def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool)
             logging.fatal("Failed to parse --interval")
             sys.exit(2)
 
+    create_athena_table()
+
     logging.info(
         f"S3 accounting collector starting with interval {interval_td}. Back-filling {backfill} intervals."
     )
-
-    create_athena_table()
 
     global client
     client = pulsar.Client(pulsar_url)
