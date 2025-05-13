@@ -136,6 +136,7 @@ def main_loop(backfill: timedelta, interval: timedelta, once: bool):
     generation_start = datetime.now(timezone.utc)
     last_generation = generation_start - backfill
 
+    logging.info(f"Generating billing events {last_generation=}, {interval=}")
     failures = generate_billing_events(last_generation, interval)
 
     while True:
@@ -153,6 +154,7 @@ def main_loop(backfill: timedelta, interval: timedelta, once: bool):
 
         wait_until(next_collection)
         generation_start = datetime.now(timezone.utc)
+        logging.info(f"Generating billing events {last_generation=}, {interval=}")
         failures = generate_billing_events(last_generation, interval)
 
 

@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections import defaultdict
 from datetime import datetime, timezone
@@ -50,6 +51,7 @@ class S3StorageSamplerMessager(
         return Messager.PulsarMessageAction(payload=sample)
 
     def process_msg(self, msgs: Iterator[SampleStorageUseRequestMsg]) -> Iterable[Messager.Action]:
+        logging.debug(f"S3StorageSamplerMessager handling {msgs=}")
         for msg in msgs:
             token = attach(baggage.set_baggage("workspace", msg.workspace))
 
@@ -107,6 +109,7 @@ class S3AccessBillingEventMessager(
     def process_msg(
         self, msgs: Iterator[GenerateAccessBillingEventRequestMsg]
     ) -> Iterable[Messager.Action]:
+        logging.debug(f"S3AccessBillingEventMessager handling {msgs=}")
         for msg in msgs:
             token = attach(baggage.set_baggage("workspace", msg.workspace))
             try:
