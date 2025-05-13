@@ -44,6 +44,12 @@ def generate_billing_events(last_generation: datetime, interval: timedelta) -> M
     global usage_messager
     global client
 
+    logging.info(
+        "Generating billing events from last_generation=%s with interval=%s",
+        last_generation,
+        interval,
+    )
+
     if not storage_messager or not usage_messager:
         assert client is not None
         storage_producer = client.create_producer(
@@ -136,7 +142,6 @@ def main_loop(backfill: timedelta, interval: timedelta, once: bool):
     generation_start = datetime.now(timezone.utc)
     last_generation = generation_start - backfill
 
-    logging.info(f"Generating billing events {last_generation=}, {interval=}")
     failures = generate_billing_events(last_generation, interval)
 
     while True:
@@ -154,7 +159,6 @@ def main_loop(backfill: timedelta, interval: timedelta, once: bool):
 
         wait_until(next_collection)
         generation_start = datetime.now(timezone.utc)
-        logging.info(f"Generating billing events {last_generation=}, {interval=}")
         failures = generate_billing_events(last_generation, interval)
 
 

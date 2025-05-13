@@ -47,24 +47,16 @@ def generate_workspace_s3_access_point_list():
     """
 
     def is_workspace_store_access_point(ap):
-        logging.debug(
-            f"{(ap["Bucket"] == AWS_BUCKET_NAME)=}, {ap["Name"].lower().startswith(AWS_PREFIX.lower())=}, "
-            + f"{AWS_BUCKET_NAME=}, {AWS_PREFIX=}, {ap=}"
-        )
         return ap["Bucket"] == AWS_BUCKET_NAME and ap["Name"].lower().startswith(AWS_PREFIX.lower())
 
     s3control = boto3.client("s3control")
     account_id = boto3.client("sts").get_caller_identity()["Account"]
 
-    logging.debug(f"Getting s3 access points in account {account_id=}")
     response = s3control.list_access_points(AccountId=account_id)
 
     while True:
         for ap in response["AccessPointList"]:
-            logging.debug(f"Got AP {ap}")
-
             if is_workspace_store_access_point(ap):
-                logging.debug("Is workspace store AP")
                 yield ap
 
         if response.get("NextToken"):
@@ -108,7 +100,6 @@ def generate_sample_times(
     limit = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
 
     while end_at < limit:
-        logging.debug(f"Generating sample times {begin_at=}, {end_at=}")
         yield ((begin_at, end_at))
 
         begin_at = end_at
