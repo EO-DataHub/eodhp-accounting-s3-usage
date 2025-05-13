@@ -33,7 +33,7 @@ class GenerateAccessBillingEventRequestMsg:
 
 
 def parse_workspace_prefix(workspace_prefix: str) -> str:
-    if workspace_prefix.startswith(AWS_PREFIX):
+    if workspace_prefix.lower().startswith(AWS_PREFIX.lower()):
         removed_prefix = workspace_prefix[len(AWS_PREFIX) :]
         removed_s3 = removed_prefix.replace("-s3", "")
         return removed_s3
