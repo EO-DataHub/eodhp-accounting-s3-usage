@@ -16,6 +16,7 @@ from accounting_s3_usage.sampler.messager import (
     S3AccessBillingEventMessager,
     S3StorageSamplerMessager,
 )
+from accounting_s3_usage.sampler.metrics import create_athena_table
 from accounting_s3_usage.sampler.sample_requests import (
     generate_access_billing_requests,
     generate_sample_times,
@@ -116,6 +117,8 @@ def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool)
     logging.info(
         f"S3 accounting collector starting with interval {interval_td}. Back-filling {backfill} intervals."
     )
+
+    create_athena_table()
 
     global client
     client = pulsar.Client(pulsar_url)

@@ -4,11 +4,18 @@ from typing import Generator
 
 import boto3
 
-from .athena_utils import run_long_result_athena_query, run_single_result_athena_query
+from .athena_utils import (
+    run_athena_query,
+    run_long_result_athena_query,
+    run_single_result_athena_query,
+)
 
-ATHENA_DB = os.getenv("ATHENA_DB", "s3_access_logs_db")
-ATHENA_OUTPUT_BUCKET = os.getenv("ATHENA_OUTPUT_BUCKET", "workspaces-logs-eodhp-dev")
-ATHENA_TABLE = os.getenv("ATHENA_TABLE", "workspaces_logs_eodhp_dev")
+ATHENA_DB = os.getenv("ATHENA_DB", "accounting_eodhp_dev")
+ATHENA_OUTPUT_BUCKET = os.getenv("ATHENA_OUTPUT_BUCKET", "accounting-athena-eodhp-dev")
+ATHENA_TABLE = os.getenv("ATHENA_TABLE", "workspaces_s3_access_logs_eodhp_dev")
+LOGS_PREFIX = os.getenv(
+    "WORKSPACE_S3_ACCESS_LOGS_S3_PREFIX", "s3://workspaces-access-logs-eodhp-dev/s3/standard/"
+)
 
 
 def format_datetime(dt: datetime) -> str:
@@ -62,3 +69,43 @@ def get_access_point_api_calls(workspace_prefix, start_time: datetime, end_time:
     )
     """
     return run_single_result_athena_query(query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)
+
+
+def create_athena_table():
+    query = f"""
+CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{ATHENA_TABLE} (
+    bucket_owner STRING,
+    bucket STRING,
+    requestdatetime STRING,
+    remoteip STRING,
+    requester STRING,
+    requestid STRING,
+    operation STRING,
+    key STRING,
+    request_uri STRING,
+    httpstatus STRING,
+    errorcode STRING,
+    bytessent BIGINT,
+    objectsize BIGINT,
+    totaltime STRING,
+    turnaroundtime STRING,
+    referrer STRING,
+    useragent STRING,
+    versionid STRING,
+    hostid STRING,
+    sigv STRING,
+    ciphersuite STRING,
+    authtype STRING,
+    endpoint STRING,
+    tlsversion STRING,
+    accesspointarn STRING
+)
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
+WITH SERDEPROPERTIES (
+ 'input.regex'='([^ ]*) ([^ ]*) \\[([^]]*)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*)(?: ([^ ]*))?.*$'
+)
+LOCATION '{LOGS_PREFIX}';
+"""  # noqa
+
+    athena = boto3.client("athena")
+    run_athena_query(athena, query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)

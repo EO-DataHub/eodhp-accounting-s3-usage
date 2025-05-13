@@ -4,7 +4,7 @@ from typing import Generator
 import boto3
 
 
-def _run_athena_query(athena, query, database, output_bucket) -> str:
+def run_athena_query(athena, query, database, output_bucket) -> str:
     """Runs an AWS Athena query and returns its execution ID."""
     response = athena.start_query_execution(
         QueryString=query,
@@ -30,7 +30,7 @@ def _run_athena_query(athena, query, database, output_bucket) -> str:
 
 def run_single_result_athena_query(query, database, output_bucket) -> float:
     athena = boto3.client("athena")
-    query_execution_id = _run_athena_query(athena, query, database, output_bucket)
+    query_execution_id = run_athena_query(athena, query, database, output_bucket)
 
     result = athena.get_query_results(QueryExecutionId=query_execution_id)
 
@@ -46,7 +46,7 @@ def run_single_result_athena_query(query, database, output_bucket) -> float:
 
 def run_long_result_athena_query(query, database, output_bucket, page_size=100) -> Generator[tuple]:
     athena = boto3.client("athena")
-    query_execution_id = _run_athena_query(athena, query, database, output_bucket)
+    query_execution_id = run_athena_query(athena, query, database, output_bucket)
 
     paginator = athena.get_paginator("get_query_results")
     page_iterator = paginator.paginate(

@@ -1,75 +1,8 @@
 # UK EO Data Hub Platform: eodhp-accounting-s3-usage
 
-This collects accounting events relating to S3 storage use by workspaces.
-
----
-
-## TODO
-- [ ] Add tests for the repository.
-- [ ] Configure the Athena DB and table to be created declaratively.
-- [ ] The S3 buckets that were not initially created with ArgoCD will not update their
-  server access logging configuration. This needs to be done manually or via a script.
-- [ ] We currently need two seperate Pulsar topics because Pulsar doesnt allow producers with different schemas to publish on the same topic.
-
----
-
-Before running this, ensure that you have setup the necessary prerequisites:
-- A bucket to collect the logs in, e.g. `workspaces_logs_eodhp_ENVIRONMENT` (This should already be created through ArgoCD)
-- The actual workspaces bucket has got "Server access logging" enabled and is distrubuting logs to `workspaces_logs_eodhp_ENVIRONMENT` (This has also been set in ArgoCD but is not applying to buckets that were originally created without it)
-- The Athena database and table has been set up (see below) (TODO: Needs to be done declaratively)
-
-To set up the Athena table, run the following SQL:
-
-__Replace `YOUR_DATABASE`, `ENVIRONMENT` and `S3-SERVER-ACCESS-LOGS-BUCKET` with the correct values.__
-
-```sql
-CREATE EXTERNAL TABLE IF NOT EXISTS YOUR_DATABASE.workspaces_logs_eodhp_ENVIRONMENT (
-    bucket_owner STRING,
-    bucket STRING,
-    requestdatetime STRING,
-    remoteip STRING,
-    requester STRING,
-    requestid STRING,
-    operation STRING,
-    key STRING,
-    request_uri STRING,
-    httpstatus STRING,
-    errorcode STRING,
-    bytessent BIGINT,
-    objectsize BIGINT,
-    totaltime STRING,
-    turnaroundtime STRING,
-    referrer STRING,
-    useragent STRING,
-    versionid STRING,
-    hostid STRING,
-    sigv STRING,
-    ciphersuite STRING,
-    authtype STRING,
-    endpoint STRING,
-    tlsversion STRING,
-    accesspointarn STRING
-)
-ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.RegexSerDe'
-WITH SERDEPROPERTIES (
- 'input.regex'='([^ ]*) ([^ ]*) \\[([^]]*)\\] ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ("[^"]*"|-) ("[^"]*"|-) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*) ([^ ]*)(?: ([^ ]*))?.*$'
-)
-LOCATION 's3://S3-SERVER-ACCESS-LOGS-BUCKET/';
-```
-
-Test that the table is working by running the following SQL:
-
-```sql
-SELECT requestdatetime, operation, key, bytessent, requester, accesspointarn
-FROM YOUR_DATABASE.YOUR_TABLE;
-```
-
-Then you can proceed to test the component.
-```
-k port-forward -n pulsar svc/pulsar-proxy 6650:6650 # in one terminal
-
-python -m accounting_s3_usage.sampler --pulsar-url pulsar://localhost:6650 -v --once
-```
+This collects accounting events relating to S3 storage use by workspaces and S3 protocol-based
+access to those stores. Access via HTTPS is collected via the data transfer billing collector
+and CloudFront logs.
 
 # Development of this component
 
@@ -94,7 +27,7 @@ run from GitHub actions.
 
 ### Alternative installation
 
-You will need Python 3.11. On Debian you may need:
+You will need Python 3.14. On Debian you may need:
 
 - `sudo add-apt-repository -y 'deb http://ppa.launchpad.net/deadsnakes/ppa/ubuntu focal main'` (or `jammy` in place of `focal` for later Debian)
 - `sudo apt update`
@@ -130,14 +63,22 @@ A number of `make` targets are defined:
 - `make dockerbuild`: build a `latest` Docker image (use `make dockerbuild `VERSION=1.2.3` for a release image)
 - `make dockerpush`: push a `latest` Docker image (again, you can add `VERSION=1.2.3`) - normally this should be done
   only via the build system and its GitHub actions.
+- `make krestart`: runs kubectl to rolling-restart the service running in the cluster you're connected to
 
 ## Local Deployment
 
+Before running this, ensure that you have setup the necessary prerequisites:
+
+- A bucket to collect the logs in, e.g. `workspaces-access-logs-eodhp-ENVIRONMENT`. ArgoCD should have created this.
+- The actual workspaces bucket has got "Server access logging" enabled and is distrubuting logs to `workspaces-access-logs-eodhp-ENVIRONMENT` with prefix `s3/standard/`. ArgoCD should have created this, but the dev environment's ArgoCD can't manage its bucket because it was created before ArgoCD was managing it. `standard` refers to standard S3 storage - if we later support, say, reduced redundancy storage then it will be billed at a different prices.
+
+Then you can proceed to test the component.
+
 ```
 k port-forward -n pulsar svc/pulsar-proxy 6650:6650 # in one terminal
+
 python -m accounting_s3_usage.sampler --pulsar-url pulsar://localhost:6650 -v --once
 ```
-
 
 ## Managing requirements
 
