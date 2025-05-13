@@ -47,7 +47,11 @@ def generate_workspace_s3_access_point_list():
     """
 
     def is_workspace_store_access_point(ap):
-        return bucket_name == AWS_BUCKET_NAME and access_point_name.startswith(AWS_PREFIX)
+        logging.debug(
+            f"{(ap["Bucket"] == AWS_BUCKET_NAME)=}, {ap["Name"].startswith(AWS_PREFIX)=}, "
+            + f"{AWS_BUCKET_NAME=}, {AWS_PREFIX=}, {ap=}"
+        )
+        return ap["Bucket"] == AWS_BUCKET_NAME and ap["Name"].startswith(AWS_PREFIX)
 
     s3control = boto3.client("s3control")
     account_id = boto3.client("sts").get_caller_identity()["Account"]
@@ -58,8 +62,6 @@ def generate_workspace_s3_access_point_list():
     while True:
         for ap in response["AccessPointList"]:
             logging.debug(f"Got AP {ap}")
-            bucket_name = ap["Bucket"]
-            access_point_name = ap["Name"]
 
             if is_workspace_store_access_point(ap):
                 logging.debug("Is workspace store AP")
