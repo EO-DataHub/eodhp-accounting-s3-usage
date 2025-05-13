@@ -48,10 +48,10 @@ def generate_workspace_s3_access_point_list():
 
     def is_workspace_store_access_point(ap):
         logging.debug(
-            f"{(ap["Bucket"] == AWS_BUCKET_NAME)=}, {ap["Name"].startswith(AWS_PREFIX)=}, "
+            f"{(ap["Bucket"] == AWS_BUCKET_NAME)=}, {ap["Name"].lower().startswith(AWS_PREFIX.lower())=}, "
             + f"{AWS_BUCKET_NAME=}, {AWS_PREFIX=}, {ap=}"
         )
-        return ap["Bucket"] == AWS_BUCKET_NAME and ap["Name"].startswith(AWS_PREFIX)
+        return ap["Bucket"] == AWS_BUCKET_NAME and ap["Name"].lower().startswith(AWS_PREFIX.lower())
 
     s3control = boto3.client("s3control")
     account_id = boto3.client("sts").get_caller_identity()["Account"]
