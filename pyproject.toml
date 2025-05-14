@@ -13,13 +13,13 @@
 # limitations under the License.
 
 [project]
-name = "CHANGEME-component-name"
-version = "0.1.0"
+name = "eodhp-accounting-s3-usage"
+dynamic = ["version"]
 description = "CHANGEME a short description"
 readme = "README.md"
 
-# Our target version is Python 3.11, but it may work with earlier versions.
-requires-python = ">=3.11"
+# Our target version is Python 3.13, but it may work with earlier versions.
+requires-python = ">=3.13"
 
 license = {file = "LICENSE"}
 
@@ -27,11 +27,11 @@ license = {file = "LICENSE"}
 # authored the project, and a valid email address corresponding to the name
 # listed.
 authors = [
-  {name = "Telespazio UK Ltd", email = "CHANGEME-alex.hayward@telespazio.com" }
+  {name = "Telespazio UK Ltd", email = "james.hinton@telespazio.com" }
 ]
 
 maintainers = [
-  {name = "Telespazio UK Ltd", email = "CHANGEME-alex.hayward@telespazio.com" }
+  {name = "Telespazio UK Ltd", email = "james.hinton@telespazio.com" }
 ]
 
 # Classifiers help users find your project by categorizing it.
@@ -53,7 +53,7 @@ classifiers = [
   # "License :: Other/Proprietary License",
 
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3 :: Only",
 ]
 
@@ -64,6 +64,11 @@ classifiers = [
 # For an analysis of this field vs pip's requirements files see:
 # https://packaging.python.org/discussions/install-requires-vs-requirements/
 dependencies = [
+  "boto3",
+  "botocore",
+  "pulsar-client",
+  "click",
+  "eodhp-utils @ git+https://github.com/EO-DataHub/eodhp-utils@v0.1.10",
 ]
 
 # List additional groups of dependencies here (e.g. development
@@ -75,7 +80,20 @@ dependencies = [
 # Similar to `dependencies` above, these must be valid existing
 # projects.
 [project.optional-dependencies] # Optional
-dev = ["pip-tools", "pytest", "pytest-xdist", "pytest-mock", "pytest-watcher", "black", "ruff", "isort", "pre-commit"]
+dev = [
+  "pip-tools", 
+  "pytest",
+  "pytest-xdist",
+  "pytest-mock",
+  "pytest-watcher",
+  "black",
+  "ruff",
+  "isort",
+  "validate-pyproject[all]",
+  "pre-commit",
+  "faker",
+  "moto",
+]
 
 # List URLs that are relevant to your project
 #
@@ -89,14 +107,17 @@ dev = ["pip-tools", "pytest", "pytest-xdist", "pytest-mock", "pytest-watcher", "
 # what's used to render the link text on PyPI.
 [project.urls]  # Optional
 homepage = "https://github.com/UKEODHP/"
-repository = "CHANGEME-https://github.com/UKEODHP/..."
-changelog = "CHANGEME-https://github.com/UKEODHP/.../master/CHANGELOG.md"
+repository = "https://github.com/EO-DataHub/eodhp-accounting-s3-usage"
+changelog = "https://github.com/EO-DataHub/eodhp-accounting-s3-usage/blob/main/CHANGELOG.md"
 
 [build-system]
 # These are the assumed default build requirements from pip:
 # https://pip.pypa.io/en/stable/reference/pip/#pep-517-and-518-support
-requires = ["setuptools>=69.0.0", "wheel"]
+requires = ["setuptools>=69.0.0", "wheel", "setuptools-git-versioning>=2.0,<3"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools-git-versioning]
+enabled = true
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
@@ -105,15 +126,15 @@ markers = [
 ]
 
 [tool.setuptools]
-packages = ["CHANGEME-pythonpkgname"]
+packages = ["accounting_s3_usage"]
 
 [tool.black]
 line-length = 100
-target-version = ['py311']
+target-version = ['py313']
 
 [tool.ruff]
 line-length = 110
-target-version = "py311"
+target-version = "py313"
 select = ["E", "F", "B", "W"]
 
 exclude = [

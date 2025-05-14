@@ -1,20 +1,18 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11-slim-bullseye
+FROM python:3.13-slim-bookworm
 
 RUN rm -f /etc/apt/apt.conf.d/docker-clean; \
     echo 'Binary::apt::APT::Keep-Downloaded-Packages "true";' > /etc/apt/apt.conf.d/keep-cache
 
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update -y && apt-get upgrade -y
+    apt-get update -y && apt-get upgrade -y \
+    && apt-get install --yes --quiet git g++
 
-WORKDIR /CHANGME-component-name
-ADD LICENSE.txt requirements.txt ./
-ADD CHANGEME-module-name ./CHANGEME-module-name/
+WORKDIR /accounting-s3-usage
+ADD LICENSE requirements.txt ./
+ADD accounting_s3_usage ./accounting_s3_usage/
 ADD pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/pip pip3 install -r requirements.txt .
 
-# Change as required, eg
-#  CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0", "-k", "uvicorn.workers.UvicornWorker", "--log-level", "debug", "mymodule.main:app"]
-CMD python -m my.module
-
+CMD ["python", "-m", "accounting_s3_usage.sampler", "-vv"]
