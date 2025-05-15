@@ -68,7 +68,7 @@ dependencies = [
   "botocore",
   "pulsar-client",
   "click",
-  "eodhp-utils @ git+https://github.com/EO-DataHub/eodhp-utils@v0.1.10",
+  "eodhp-utils @ git+https://github.com/EO-DataHub/eodhp-utils@v0.1.11",
 ]
 
 # List additional groups of dependencies here (e.g. development
