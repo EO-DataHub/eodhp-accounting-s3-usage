@@ -14,7 +14,8 @@ ATHENA_DB = os.getenv("ATHENA_DB", "accounting_eodhp_dev")
 ATHENA_OUTPUT_BUCKET = os.getenv("ATHENA_OUTPUT_BUCKET", "accounting-athena-eodhp-dev")
 ATHENA_TABLE = os.getenv("ATHENA_TABLE", "workspaces_s3_access_logs_eodhp_dev")
 LOGS_PREFIX = os.getenv(
-    "WORKSPACE_S3_ACCESS_LOGS_S3_PREFIX", "s3://workspaces-access-logs-eodhp-dev/s3/standard/"
+    "WORKSPACE_S3_ACCESS_LOGS_S3_PREFIX",
+    "s3://workspaces-access-logs-eodhp-dev/012345678901/us-east-1/workspaces-eodhp-dev",
 )
 
 
