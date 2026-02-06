@@ -1,10 +1,11 @@
 import time
-from typing import Generator
+from collections.abc import Generator
 
 import boto3
+from botocore.client import BaseClient
 
 
-def run_athena_query(athena, query, database, output_bucket) -> str:
+def run_athena_query(athena: BaseClient, query: str, database: str, output_bucket: str) -> str:
     """Runs an AWS Athena query and returns its execution ID."""
     response = athena.start_query_execution(
         QueryString=query,
@@ -28,7 +29,7 @@ def run_athena_query(athena, query, database, output_bucket) -> str:
         time.sleep(1)
 
 
-def run_single_result_athena_query(query, database, output_bucket) -> float:
+def run_single_result_athena_query(query: str, database: str, output_bucket: str) -> float:
     athena = boto3.client("athena")
     query_execution_id = run_athena_query(athena, query, database, output_bucket)
 
@@ -44,14 +45,14 @@ def run_single_result_athena_query(query, database, output_bucket) -> float:
     return float(value)
 
 
-def run_long_result_athena_query(query, database, output_bucket, page_size=100) -> Generator[tuple]:
+def run_long_result_athena_query(
+    query: str, database: str, output_bucket: str, page_size: int = 100
+) -> Generator[tuple[str | None, ...]]:
     athena = boto3.client("athena")
     query_execution_id = run_athena_query(athena, query, database, output_bucket)
 
     paginator = athena.get_paginator("get_query_results")
-    page_iterator = paginator.paginate(
-        QueryExecutionId=query_execution_id, PaginationConfig={"PageSize": page_size}
-    )
+    page_iterator = paginator.paginate(QueryExecutionId=query_execution_id, PaginationConfig={"PageSize": page_size})
 
     first = True
 
@@ -72,6 +73,6 @@ def run_long_result_athena_query(query, database, output_bucket, page_size=100) 
                 # '{}'. For example:
                 #   {'Data': [{'VarCharValue': '-'}, {}]}
                 # We ignore rows like this.
-                result_row = tuple(map(lambda d: d.get("VarCharValue"), row["Data"]))
-                if all(map(lambda d: d is not None, result_row)):
+                result_row = tuple(d.get("VarCharValue") for d in row["Data"])
+                if all(d is not None for d in result_row):
                     yield result_row

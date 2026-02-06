@@ -1,6 +1,6 @@
 import os
+from collections.abc import Generator
 from datetime import datetime
-from typing import Generator, Tuple
 
 import boto3
 
@@ -24,11 +24,11 @@ def format_datetime(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def get_partition_start_end_days(start_time: datetime, end_time: datetime) -> Tuple[str, str]:
+def get_partition_start_end_days(start_time: datetime, end_time: datetime) -> tuple[str, str]:
     return (start_time.strftime("%Y/%m/%d"), end_time.strftime("%Y/%m/%d"))
 
 
-def get_prefix_storage_size(bucket_name, prefix):
+def get_prefix_storage_size(bucket_name: str, prefix: str) -> float:
     s3 = boto3.client("s3")
     paginator = s3.get_paginator("list_objects_v2")
 
@@ -44,8 +44,8 @@ def get_prefix_storage_size(bucket_name, prefix):
 
 
 def get_access_point_data_transfer(
-    workspace_prefix, start_time: datetime, end_time: datetime
-) -> Generator[tuple[str, str]]:
+    workspace_prefix: str, start_time: datetime, end_time: datetime
+) -> Generator[tuple[str | None, ...]]:
     start_partition, end_partition = get_partition_start_end_days(start_time, end_time)
     query = f"""
     SELECT remoteip, COALESCE(SUM(bytessent), 0)/1073741824.0 AS total_gb_transferred
@@ -59,7 +59,7 @@ def get_access_point_data_transfer(
     return run_long_result_athena_query(query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)
 
 
-def get_access_point_api_calls(workspace_prefix, start_time: datetime, end_time: datetime) -> float:
+def get_access_point_api_calls(workspace_prefix: str, start_time: datetime, end_time: datetime) -> float:
     start_partition, end_partition = get_partition_start_end_days(start_time, end_time)
     query = f"""
     SELECT COUNT(*) AS total_api_calls FROM (
@@ -81,7 +81,7 @@ def get_access_point_api_calls(workspace_prefix, start_time: datetime, end_time:
     return run_single_result_athena_query(query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)
 
 
-def create_athena_table():
+def create_athena_table() -> None:
     query = f"""
 CREATE EXTERNAL TABLE IF NOT EXISTS {ATHENA_DB}.{ATHENA_TABLE} (
     bucket_owner STRING,
@@ -127,7 +127,7 @@ TBLPROPERTIES (
  'projection.timestamp.range'='2025/01/01,NOW',
  'storage.location.template'='{LOGS_PREFIX}${{timestamp}}'
 );
-"""  # noqa
+"""
 
     athena = boto3.client("athena")
     run_athena_query(athena, query, ATHENA_DB, ATHENA_OUTPUT_BUCKET)

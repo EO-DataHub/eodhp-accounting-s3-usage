@@ -6,7 +6,7 @@ from accounting_s3_usage.sampler.athena_utils import (
 )
 
 
-def test_running_single_result_athena_query_produces_correct_value():
+def test_running_single_result_athena_query_produces_correct_value() -> None:
     with (
         mock.patch("accounting_s3_usage.sampler.athena_utils.boto3") as botomock,
         mock.patch("accounting_s3_usage.sampler.athena_utils.time"),
@@ -62,16 +62,14 @@ def test_running_single_result_athena_query_produces_correct_value():
         assert result == 166
 
 
-def test_running_single_result_athena_query_with_no_matching_rows_produces_correct_value():
+def test_running_single_result_athena_query_with_no_matching_rows_produces_correct_value() -> None:
     with (
         mock.patch("accounting_s3_usage.sampler.athena_utils.boto3") as botomock,
         mock.patch("accounting_s3_usage.sampler.athena_utils.time"),
     ):
         athenamock = botomock.client("athena")
         athenamock.start_query_execution.return_value = {"QueryExecutionId": 123}
-        athenamock.get_query_execution.return_value = {
-            "QueryExecution": {"Status": {"State": "SUCCEEDED"}}
-        }
+        athenamock.get_query_execution.return_value = {"QueryExecution": {"Status": {"State": "SUCCEEDED"}}}
 
         # This is a real-life API result from Athena.
         athenamock.get_query_results.return_value = {
@@ -116,7 +114,7 @@ def test_running_single_result_athena_query_with_no_matching_rows_produces_corre
         assert result == 0.0
 
 
-def test_running_long_result_athena_query_with_multiple_pages_produces_correct_values():
+def test_running_long_result_athena_query_with_multiple_pages_produces_correct_values() -> None:
     with (
         mock.patch("accounting_s3_usage.sampler.athena_utils.boto3") as botomock,
         mock.patch("accounting_s3_usage.sampler.athena_utils.time"),
@@ -171,7 +169,7 @@ def test_running_long_result_athena_query_with_multiple_pages_produces_correct_v
                         ]
                     },
                 },
-                "NextToken": "AS/95lHeUo3ZoGRNv2e0WKmm5aFq2y+chQcaiWtIT3QJtJH3rQEMWWE6GUA931wcmNM+RkSfn8MmrLRhDTk+avHM9/K/mluj7A==",  # noqa
+                "NextToken": "AS/95lHeUo3ZoGRNv2e0WKmm5aFq2y+chQcaiWtIT3QJtJH3rQEMWWE6GUA931wcmNM+RkSfn8MmrLRhDTk+avHM9/K/mluj7A==",
                 "ResponseMetadata": {
                     "RequestId": "bdfff102-771f-402a-96e4-1772d487175d",
                     "HTTPStatusCode": 200,
@@ -188,9 +186,7 @@ def test_running_long_result_athena_query_with_multiple_pages_produces_correct_v
             {
                 "UpdateCount": 0,
                 "ResultSet": {
-                    "Rows": [
-                        {"Data": [{"VarCharValue": "-"}, {"VarCharValue": "0.008852269500494003"}]}
-                    ],
+                    "Rows": [{"Data": [{"VarCharValue": "-"}, {"VarCharValue": "0.008852269500494003"}]}],
                     "ResultSetMetadata": {
                         "ColumnInfo": [
                             {
@@ -220,7 +216,7 @@ def test_running_long_result_athena_query_with_multiple_pages_produces_correct_v
                         ]
                     },
                 },
-                "NextToken": "AS/95lHeUo3Z1mobYWkLkO3zxurrJdRA2z4MvOlzPzDuIp8yUcvvIQnRC0Y9ICZH6RJZOPFf+4mFtFHEzkoANFiXz7dsTL43Dg==",  # noqa
+                "NextToken": "AS/95lHeUo3Z1mobYWkLkO3zxurrJdRA2z4MvOlzPzDuIp8yUcvvIQnRC0Y9ICZH6RJZOPFf+4mFtFHEzkoANFiXz7dsTL43Dg==",
                 "ResponseMetadata": {
                     "RequestId": "9759ed8e-40b8-49a8-939d-7bbb83636c90",
                     "HTTPStatusCode": 200,
@@ -274,7 +270,7 @@ def test_running_long_result_athena_query_with_multiple_pages_produces_correct_v
                         ]
                     },
                 },
-                "NextToken": "AS/95lHeUo3Z09TMJQSraAXTrWP2sCaTVFj6KVXyCjrexO4axWiyGPeP1/nVTwaXww6gtiiOnSE6VCNBv4JChmXJ35oi5mIDuA==",  # noqa
+                "NextToken": "AS/95lHeUo3Z09TMJQSraAXTrWP2sCaTVFj6KVXyCjrexO4axWiyGPeP1/nVTwaXww6gtiiOnSE6VCNBv4JChmXJ35oi5mIDuA==",
                 "ResponseMetadata": {
                     "RequestId": "e72819fd-f323-4919-b1d3-9cf217173c18",
                     "HTTPStatusCode": 200,
@@ -342,7 +338,7 @@ def test_running_long_result_athena_query_with_multiple_pages_produces_correct_v
         assert results == [("-", "0.008852269500494003"), ("18.175.49.181", "0.02212107926607132")]
 
 
-def test_running_long_result_athena_query_with_no_result_rows_produces_correct_values():
+def test_running_long_result_athena_query_with_no_result_rows_produces_correct_values() -> None:
     with (
         mock.patch("accounting_s3_usage.sampler.athena_utils.boto3") as botomock,
         mock.patch("accounting_s3_usage.sampler.athena_utils.time"),
