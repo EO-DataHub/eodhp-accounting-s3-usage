@@ -1,9 +1,10 @@
 import itertools
 import logging
 import os
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Iterable
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import boto3
 
@@ -41,12 +42,12 @@ def parse_workspace_prefix(workspace_prefix: str) -> str:
         raise ValueError(f"Invalid workspace prefix: {workspace_prefix}")
 
 
-def generate_workspace_s3_access_point_list():
+def generate_workspace_s3_access_point_list() -> Generator[dict[str, Any]]:
     """
     Generates access point information for the access points used for S3 workspace stores.
     """
 
-    def is_workspace_store_access_point(ap):
+    def is_workspace_store_access_point(ap: dict[str, Any]) -> bool:
         return ap["Bucket"] == AWS_BUCKET_NAME and ap["Name"].lower().startswith(AWS_PREFIX.lower())
 
     s3control = boto3.client("s3control")
@@ -60,16 +61,14 @@ def generate_workspace_s3_access_point_list():
                 yield ap
 
         if response.get("NextToken"):
-            response = s3control.list_access_points(
-                AccountId=account_id, NextToken=response["NextToken"]
-            )
+            response = s3control.list_access_points(AccountId=account_id, NextToken=response["NextToken"])
         else:
             return
 
 
 def generate_access_billing_requests(
-    access_points: Iterable[dict], intervals: Iterable[tuple[datetime, datetime]]
-) -> Iterable[GenerateAccessBillingEventRequestMsg]:
+    access_points: Iterable[dict[str, Any]], intervals: Iterable[tuple[datetime, datetime]]
+) -> Generator[GenerateAccessBillingEventRequestMsg]:
     """
     Generates access billing requests, which are requests to the Messagers to generate S3
     access (bandwidth and API calls) billing data for a particular workspace object store for
@@ -88,16 +87,14 @@ def generate_access_billing_requests(
         )
 
 
-def generate_sample_times(
-    last_end: datetime, interval: timedelta
-) -> Iterable[tuple[datetime, datetime]]:
+def generate_sample_times(last_end: datetime, interval: timedelta) -> Generator[tuple[datetime, datetime]]:
     """
     Generates intervals to sample based on either the end of the last sampled period or a
     timestamp within the period which we should start backfilling from.
     """
     begin_at = align_to_interval(last_end, interval)
     end_at = begin_at + interval
-    limit = datetime.now(timezone.utc) - LOG_DELAY_BUFFER
+    limit = datetime.now(UTC) - LOG_DELAY_BUFFER
 
     while end_at < limit:
         yield ((begin_at, end_at))
@@ -107,8 +104,8 @@ def generate_sample_times(
 
 
 def generate_storage_sample_requests(
-    access_points: Iterable[dict],
-) -> Iterable[SampleStorageUseRequestMsg]:
+    access_points: Iterable[dict[str, Any]],
+) -> Generator[SampleStorageUseRequestMsg]:
     """
     Generates access storage sample requests, which are requests to the Messagers to generate S3
     storage consumption samples.

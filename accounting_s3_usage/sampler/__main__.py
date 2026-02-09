@@ -1,7 +1,8 @@
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import click
 import pulsar
@@ -11,6 +12,7 @@ from eodhp_utils.pulsar.messages import (
     generate_billingresourceconsumptionratesample_schema,
 )
 from eodhp_utils.runner import GeneratorRunner, log_component_version, setup_logging
+from pulsar.schema import BytesSchema
 
 from accounting_s3_usage.sampler.messager import (
     S3AccessBillingEventMessager,
@@ -33,9 +35,9 @@ PULSAR_SERVICE_URL = os.getenv("PULSAR_URL", "pulsar://localhost:6650")
 TOPIC_EVENTS = os.getenv("PULSAR_TOPIC", "billing-events")
 TOPIC_STORAGE = os.getenv("PULSAR_TOPIC_STORAGE", "billing-events-consumption-rate-samples")
 
-client = None
-storage_messager = None
-usage_messager = None
+client: pulsar.Client | None = None
+storage_messager: GeneratorRunner | None = None
+usage_messager: GeneratorRunner | None = None
 
 
 def generate_billing_events(last_generation: datetime, interval: timedelta) -> Messager.Failures:
@@ -53,11 +55,13 @@ def generate_billing_events(last_generation: datetime, interval: timedelta) -> M
     if not storage_messager or not usage_messager:
         assert client is not None
         storage_producer = client.create_producer(
-            topic=TOPIC_STORAGE, schema=generate_billingresourceconsumptionratesample_schema()
+            topic=TOPIC_STORAGE,
+            schema=cast(BytesSchema, generate_billingresourceconsumptionratesample_schema()),
         )
 
         usage_producer = client.create_producer(
-            topic=TOPIC_EVENTS, schema=generate_billingevent_schema()
+            topic=TOPIC_EVENTS,
+            schema=cast(BytesSchema, generate_billingevent_schema()),
         )
 
         storage_messager = GeneratorRunner(
@@ -98,7 +102,7 @@ def generate_billing_events(last_generation: datetime, interval: timedelta) -> M
     help="Interval for periodic sampling in the form '1d', '2h', '30m' or '30s'.",
 )
 @click.option("--once", is_flag=True, help="Run sampling once immediately, then exit.")
-def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool):
+def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool) -> None:
     setup_logging(verbosity=verbose, enable_otel_logging=True)
     log_component_version("eodhp-accounting-s3-usage")
 
@@ -122,9 +126,7 @@ def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool)
 
     create_athena_table()
 
-    logging.info(
-        f"S3 accounting collector starting with interval {interval_td}. Back-filling {backfill} intervals."
-    )
+    logging.info(f"S3 accounting collector starting with interval {interval_td}. Back-filling {backfill} intervals.")
 
     global client
     client = pulsar.Client(pulsar_url)
@@ -138,8 +140,8 @@ def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool)
         client.close()
 
 
-def main_loop(backfill: timedelta, interval: timedelta, once: bool):
-    generation_start = datetime.now(timezone.utc)
+def main_loop(backfill: timedelta, interval: timedelta, once: bool) -> int | None:
+    generation_start = datetime.now(UTC)
     last_generation = generation_start - backfill
 
     failures = generate_billing_events(last_generation, interval)
@@ -152,13 +154,13 @@ def main_loop(backfill: timedelta, interval: timedelta, once: bool):
             return 1 if failures.any_temporary() else 0
 
         if failures.any_temporary():
-            next_collection = datetime.now(timezone.utc) + timedelta(minutes=10)
+            next_collection = datetime.now(UTC) + timedelta(minutes=10)
         else:
             next_collection = next_collection_after(generation_start, interval)
             last_generation = generation_start
 
         wait_until(next_collection)
-        generation_start = datetime.now(timezone.utc)
+        generation_start = datetime.now(UTC)
         failures = generate_billing_events(last_generation, interval)
 
 
