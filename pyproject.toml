@@ -3,7 +3,7 @@ name = "eodhp-accounting-s3-usage"
 dynamic = ["version"]
 description = "CHANGEME a short description"
 readme = "README.md"
-requires-python = ">=3.13,<3.14"
+requires-python = ">=3.14,<3.15"
 license = {file = "LICENSE"}
 authors = [
   {name = "Telespazio UK Ltd", email = "james.hinton@telespazio.com" }
