@@ -57,7 +57,7 @@ class S3StorageSamplerMessager(Messager[Iterator[SampleStorageUseRequestMsg], Bi
                 workspace = request.workspace
                 bucket_name = request.bucket_name
                 sample_time = datetime.now(UTC)
-                storage_gb = get_prefix_storage_size(bucket_name, workspace)
+                storage_gb = get_prefix_storage_size(bucket_name, f"{workspace}/")
 
                 print(f"======= {workspace} =======")
                 print(f"Sampled at: {sample_time.isoformat()}")
