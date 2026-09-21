@@ -3,6 +3,7 @@ from collections.abc import Generator
 
 import boto3
 from botocore.client import BaseClient
+from eodhp_utils.messagers import TemporaryFailure
 
 
 def run_athena_query(athena: BaseClient, query: str, database: str, output_bucket: str) -> str:
@@ -24,6 +25,12 @@ def run_athena_query(athena: BaseClient, query: str, database: str, output_bucke
             return query_execution_id
 
         if status not in {"RUNNING", "QUEUED"}:
+            # AthenaError.Retryable tells us whether AWS considers the failure transient (e.g.
+            # resource limits/throttling) rather than a permanent problem with the query itself.
+            athena_error = query_status["QueryExecution"]["Status"].get("AthenaError", {})
+            if athena_error.get("Retryable"):
+                raise TemporaryFailure(f"Athena query {query} failed: {status} {query_status=}")
+
             raise Exception(f"Athena query {query} failed: {status} {query_status=}")
 
         time.sleep(1)
