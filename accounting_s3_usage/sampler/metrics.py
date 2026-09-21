@@ -37,7 +37,9 @@ def get_prefix_storage_size(bucket_name: str, prefix: str) -> float:
     paginator = s3.get_paginator("list_objects_v2")
 
     total_size_bytes = 0
-    page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+    # A trailing slash is required so that, e.g., prefix "team1" doesn't also match objects
+    # under "team10/" - matching the convention used for the Athena `key LIKE` queries below.
+    page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=f"{prefix}/")
 
     for page in page_iterator:
         if "Contents" in page:
