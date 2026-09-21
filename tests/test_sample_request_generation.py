@@ -35,6 +35,7 @@ def mock_make_api_call(
                     {"Bucket": "ws-bucket", "Name": "aws-prefix-workspace1-s3"},
                     {"Bucket": "other-bucket", "Name": "aws-prefix-not-a-workspace-s3"},
                     {"Bucket": "ws-bucket", "Name": "aws-prefix-workspace3-s3"},
+                    {"Bucket": "ws-bucket", "Name": "aws-prefix-legacy-access-point"},
                 ],
                 "NextToken": "next-token",
             }

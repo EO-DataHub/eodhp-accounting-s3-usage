@@ -61,6 +61,13 @@ def generate_workspace_s3_access_point_list() -> Generator[dict[str, Any]]:
     while True:
         for ap in response["AccessPointList"]:
             if is_workspace_store_access_point(ap):
+                if not ap["Name"].endswith("-s3"):
+                    logging.warning(
+                        f"Skipping access point {ap['Name']!r}: matches the workspace prefix "
+                        f"but doesn't end in '-s3', so a workspace name can't be derived from it."
+                    )
+                    continue
+
                 yield ap
 
         if response.get("NextToken"):
