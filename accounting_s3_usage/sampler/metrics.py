@@ -1,6 +1,6 @@
 import os
 from collections.abc import Generator
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import boto3
 
@@ -25,7 +25,11 @@ def format_datetime(dt: datetime) -> str:
 
 
 def get_partition_start_end_days(start_time: datetime, end_time: datetime) -> tuple[str, str]:
-    return (start_time.strftime("%Y/%m/%d"), end_time.strftime("%Y/%m/%d"))
+    # S3 access log delivery is best-effort and can lag behind the event, so a request made
+    # just before midnight can be delivered into the *next* day's partition. Extend the upper
+    # bound by a day to still find it; the precise `requestdatetime` filter in the query still
+    # constrains results to the actual requested interval, so this can't return extra rows.
+    return (start_time.strftime("%Y/%m/%d"), (end_time + timedelta(days=1)).strftime("%Y/%m/%d"))
 
 
 def get_prefix_storage_size(bucket_name: str, prefix: str) -> float:
@@ -33,7 +37,9 @@ def get_prefix_storage_size(bucket_name: str, prefix: str) -> float:
     paginator = s3.get_paginator("list_objects_v2")
 
     total_size_bytes = 0
-    page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=prefix)
+    # A trailing slash is required so that, e.g., prefix "team1" doesn't also match objects
+    # under "team10/" - matching the convention used for the Athena `key LIKE` queries below.
+    page_iterator = paginator.paginate(Bucket=bucket_name, Prefix=f"{prefix}/")
 
     for page in page_iterator:
         if "Contents" in page:

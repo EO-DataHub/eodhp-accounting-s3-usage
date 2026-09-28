@@ -36,8 +36,11 @@ class GenerateAccessBillingEventRequestMsg:
 def parse_workspace_prefix(workspace_prefix: str) -> str:
     if workspace_prefix.lower().startswith(AWS_PREFIX.lower()):
         removed_prefix = workspace_prefix[len(AWS_PREFIX) :]
-        removed_s3 = removed_prefix.replace("-s3", "")
-        return removed_s3
+        if not removed_prefix.endswith("-s3"):
+            raise ValueError(f"Invalid workspace prefix: {workspace_prefix}")
+        # Only strip the trailing "-s3" suffix - a plain .replace("-s3", "") would also corrupt
+        # workspace names that contain "-s3" elsewhere, e.g. "foo-s3-bar".
+        return removed_prefix[: -len("-s3")]
     else:
         raise ValueError(f"Invalid workspace prefix: {workspace_prefix}")
 
@@ -58,6 +61,13 @@ def generate_workspace_s3_access_point_list() -> Generator[dict[str, Any]]:
     while True:
         for ap in response["AccessPointList"]:
             if is_workspace_store_access_point(ap):
+                if not ap["Name"].endswith("-s3"):
+                    logging.warning(
+                        f"Skipping access point {ap['Name']!r}: matches the workspace prefix "
+                        f"but doesn't end in '-s3', so a workspace name can't be derived from it."
+                    )
+                    continue
+
                 yield ap
 
         if response.get("NextToken"):

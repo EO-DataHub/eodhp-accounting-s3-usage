@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
@@ -59,10 +60,12 @@ class S3StorageSamplerMessager(Messager[Iterator[SampleStorageUseRequestMsg], Bi
                 sample_time = datetime.now(UTC)
                 storage_gb = get_prefix_storage_size(bucket_name, workspace)
 
-                print(f"======= {workspace} =======")
-                print(f"Sampled at: {sample_time.isoformat()}")
-                print(f"Storage Size: {storage_gb:.6f} GB")
-                print("============================\n")
+                logging.info(
+                    "Sampled storage for %s at %s: %.6f GB",
+                    workspace,
+                    sample_time.isoformat(),
+                    storage_gb,
+                )
 
                 yield self.generate_storage_sample(workspace, storage_gb, sample_time)
             finally:
@@ -120,7 +123,7 @@ class S3AccessBillingEventMessager(Messager[Iterator[GenerateAccessBillingEventR
                         # None has not been observed and is here to be defensive.
                         continue
 
-                    print(f"{destination=}, {transferred=}")
+                    logging.info("destination=%s, transferred=%s", destination, transferred)
                     egress_type = self._aws_ip_classifier.classify(destination)
                     sku = {
                         EgressClass.REGION: "AWS-S3-DATA-TRANSFER-OUT-REGION",
@@ -135,10 +138,13 @@ class S3AccessBillingEventMessager(Messager[Iterator[GenerateAccessBillingEventR
                     request.workspace, request.interval_start, request.interval_end
                 )
 
-                print(f"======= {request.workspace} =======")
-                print(f"Time Interval: {request.interval_start} to {request.interval_end}")
-                print(f"{sku_quantities}")
-                print("============================\n")
+                logging.info(
+                    "Generated billing quantities for %s over %s to %s: %s",
+                    request.workspace,
+                    request.interval_start,
+                    request.interval_end,
+                    dict(sku_quantities),
+                )
 
                 for sku, quantity in sku_quantities.items():
                     yield self.generate_billing_event(request, sku, quantity)
