@@ -5,6 +5,7 @@ import pytest
 from eodhp_utils.messagers import Messager
 
 from accounting_s3_usage.sampler.__main__ import main_loop
+from accounting_s3_usage.sampler.sample_requests import generate_sample_times
 
 
 @pytest.mark.parametrize(
@@ -58,12 +59,12 @@ def test_permanent_error_after_two_generation_persios_results_in_correct_generat
             [
                 # Backfilling from the day after the start time
                 mock.call(datetime(2024, 12, 31, 12, 0, 0, tzinfo=UTC), timedelta(days=1)),
-                # Generating from time of previous successful run.
-                mock.call(datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC), timedelta(days=1)),
-                # Generating from time of previous successful run.
-                mock.call(datetime(2025, 1, 2, 3, 0, 1, tzinfo=UTC), timedelta(days=1)),
+                # Generating from the end of the log delay at the previous successful run.
+                mock.call(datetime(2025, 1, 1, 9, 0, 0, tzinfo=UTC), timedelta(days=1)),
+                # Generating from the end of the log delay at the previous successful run.
+                mock.call(datetime(2025, 1, 2, 0, 0, 1, tzinfo=UTC), timedelta(days=1)),
                 # Retry of same generation after temporary failure.
-                mock.call(datetime(2025, 1, 2, 3, 0, 1, tzinfo=UTC), timedelta(days=1)),
+                mock.call(datetime(2025, 1, 2, 0, 0, 1, tzinfo=UTC), timedelta(days=1)),
             ]
         )
         wait_until.assert_has_calls(
@@ -76,3 +77,35 @@ def test_permanent_error_after_two_generation_persios_results_in_correct_generat
                 mock.call(datetime(2025, 1, 3, 3, 10, 1, tzinfo=UTC)),
             ]
         )
+
+
+def test_restart_inside_the_log_delay_does_not_skip_a_period() -> None:
+    """
+    A restart at 13:31 with 4h periods and a 3h log delay can only finish periods that ended
+    by 10:31, so 08:00-12:00 waits for the next run, at 19:00:01. That run must cover it.
+    """
+    run_times = [
+        datetime(2026, 11, 17, 13, 31, 0, tzinfo=UTC),  # Startup
+        datetime(2026, 11, 17, 19, 0, 1, tzinfo=UTC),  # Second run
+    ]
+    covered: list[tuple[datetime, datetime]] = []
+
+    def generate(last_generation: datetime, interval: timedelta) -> Messager.Failures:
+        with mock.patch("accounting_s3_usage.sampler.sample_requests.datetime", wraps=datetime) as sample_dt:
+            sample_dt.now.return_value = run_times[0]
+            covered.extend(generate_sample_times(last_generation, interval))
+        run_times.pop(0)
+        # Stop the loop after the second run.
+        return Messager.Failures(permanent=not run_times)
+
+    with (
+        mock.patch("accounting_s3_usage.sampler.__main__.datetime", wraps=datetime) as dt,
+        mock.patch("accounting_s3_usage.sampler.__main__.wait_until"),
+        mock.patch("accounting_s3_usage.sampler.__main__.generate_billing_events", side_effect=generate),
+    ):
+        dt.now.side_effect = lambda tz=None: run_times[0]
+        main_loop(timedelta(hours=12), timedelta(hours=4), once=False)
+
+    day = datetime(2026, 11, 17, tzinfo=UTC)
+    four_hours = timedelta(hours=4)
+    assert covered == [(day + n * four_hours, day + (n + 1) * four_hours) for n in range(4)]
