@@ -27,6 +27,28 @@ the data-objects service (ADR-003 in eodhp-guide). The Hub pays AWS for these re
 The collector creates the Athena table at startup if it does not exist. It does not change an
 existing table, so drop the table after a change to its definition.
 
+## When charges appear
+
+The collector charges usage in fixed periods, set by `--interval` (4 hours in the deployment).
+It totals a period only after `LOG_DELAY_BUFFER` (3 hours) has passed since the period ended:
+
+- **The periods** keep the number of Athena queries and ledger rows small. Each workspace gets
+  one event per SKU per period, not one per request.
+- **The buffer** is for S3 server access logs, which the storage-access SKUs are charged from.
+  AWS delivers those logs on a best-effort basis, sometimes hours late. A log line that arrives
+  after its period was charged is never charged: a second event for that period would have the
+  same UUID, and the accounting service ignores it.
+
+So usage appears in the ledger 3 to 7 hours after it happens. For example, a read at 12:01 and a
+read at 15:59 are both in the 12:00 to 16:00 period, which the collector totals at about 19:00.
+
+Requester-pays reads share these settings because they run in the same loop. CloudTrail
+delivers its data events in about 5 to 15 minutes, so those reads could be charged sooner with
+their own, shorter period and buffer. That needs a code change.
+
+After each run the collector carries on from its start time less the buffer. The period that
+was still inside the buffer at that time is then totalled by the next run, also after a restart.
+
 # Development of this component
 
 ## Getting started
