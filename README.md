@@ -4,6 +4,29 @@ This collects accounting events relating to S3 storage use by workspaces and S3 
 access to those stores. Access via HTTPS is collected via the data transfer billing collector
 and CloudFront logs.
 
+## Requester-pays reads
+
+It also charges workspaces for reads of requester-pays buckets, such as `usgs-landsat`, through
+the data-objects service (ADR-003 in eodhp-guide). The Hub pays AWS for these reads.
+
+- The data-objects service signs each read as a session of its signer role, named after the
+  workspace. The account's data-access CloudTrail trail records each read.
+- For each period, one Athena query over the trail totals `bytesTransferredOut` per workspace.
+  It counts only successful `GetObject` events signed by this cluster's signer role. Staging and
+  prod share an AWS account, and the thumbnail role's reads are previews that the project pays for.
+- Each workspace with reads gets one `BillingEvent` with SKU `REQUESTER-PAYS-DATA-TRANSFER`, in
+  GB. The SKU needs a price in the accounting service's product configuration, or it is not charged.
+
+| Variable | Example |
+|---|---|
+| `DATA_ACCESS_TRAIL_TABLE` | `data_access_trail_test`. Leave unset to turn this off. |
+| `DATA_ACCESS_TRAIL_S3_PREFIX` | `s3://eodhp-123456789012-data-access-trail/AWSLogs/123456789012/CloudTrail/` |
+| `DATA_ACCESS_TRAIL_REGIONS` | `us-west-2` (the default). Comma-separated regions of the requester-pays buckets. |
+| `DATA_OBJECTS_SIGNER_ROLE_NAME` | `data-objects-signer-<cluster name>` |
+
+The collector creates the Athena table at startup if it does not exist. It does not change an
+existing table, so drop the table after a change to its definition.
+
 # Development of this component
 
 ## Getting started

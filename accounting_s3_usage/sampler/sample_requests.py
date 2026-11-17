@@ -33,6 +33,25 @@ class GenerateAccessBillingEventRequestMsg:
     interval_end: datetime
 
 
+@dataclass(eq=True, frozen=True)
+class GenerateRequesterPaysBillingEventRequestMsg:
+    """Charge every workspace for its requester-pays reads in one period (ADR-003)."""
+
+    interval_start: datetime
+    interval_end: datetime
+
+
+def generate_requester_pays_billing_requests(
+    intervals: Iterable[tuple[datetime, datetime]],
+) -> Generator[GenerateRequesterPaysBillingEventRequestMsg]:
+    """
+    One request per period, not per workspace: the data-access trail names the workspace in
+    each event, so a single query per period finds every workspace that read anything.
+    """
+    for start, end in intervals:
+        yield GenerateRequesterPaysBillingEventRequestMsg(interval_start=start, interval_end=end)
+
+
 def parse_workspace_prefix(workspace_prefix: str) -> str:
     if workspace_prefix.lower().startswith(AWS_PREFIX.lower()):
         removed_prefix = workspace_prefix[len(AWS_PREFIX) :]

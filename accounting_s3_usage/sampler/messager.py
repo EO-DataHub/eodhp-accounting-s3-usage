@@ -19,9 +19,11 @@ from .metrics import (
     get_access_point_api_calls,
     get_access_point_data_transfer,
     get_prefix_storage_size,
+    get_requester_pays_transfer,
 )
 from .sample_requests import (
     GenerateAccessBillingEventRequestMsg,
+    GenerateRequesterPaysBillingEventRequestMsg,
     SampleStorageUseRequestMsg,
 )
 
@@ -152,4 +154,54 @@ class S3AccessBillingEventMessager(Messager[Iterator[GenerateAccessBillingEventR
                 detach(token)
 
     def gen_empty_catalogue_message(self, msg: Iterator[GenerateAccessBillingEventRequestMsg]) -> Never:
+        raise NotImplementedError()
+
+
+# Data the Hub paid AWS to read from a requester-pays bucket for a workspace, in GB.
+REQUESTER_PAYS_SKU = "REQUESTER-PAYS-DATA-TRANSFER"
+
+
+class RequesterPaysBillingEventMessager(Messager[Iterator[GenerateRequesterPaysBillingEventRequestMsg], BillingEvent]):
+    """
+    This generates BillingEvents for workspace reads of requester-pays buckets through the
+    data-objects service, from the data-access CloudTrail trail.
+
+    This can generate events for any specified period in the past. Generating the same period
+    again gives events with the same UUIDs, which the accounting service ignores.
+    """
+
+    def generate_billing_event(
+        self, request: GenerateRequesterPaysBillingEventRequestMsg, workspace: str, quantity: float
+    ) -> Messager.PulsarMessageAction:
+        event_uuid = uuid.uuid5(
+            uuid.NAMESPACE_DNS, f"{workspace}-{REQUESTER_PAYS_SKU}-{request.interval_start.isoformat()}"
+        )
+        event = BillingEvent(
+            uuid=str(event_uuid),
+            event_start=request.interval_start.isoformat(),
+            event_end=request.interval_end.isoformat(),
+            sku=REQUESTER_PAYS_SKU,
+            user=None,
+            workspace=workspace,
+            quantity=round(quantity, 6),
+        )
+        return Messager.PulsarMessageAction(payload=event)
+
+    def process_msg(self, msg: Iterator[GenerateRequesterPaysBillingEventRequestMsg]) -> Iterable[Messager.Action]:
+        for request in msg:
+            for workspace, transferred in get_requester_pays_transfer(request.interval_start, request.interval_end):
+                # run_long_result_athena_query drops rows with nulls; this is for the type checker.
+                assert workspace is not None
+                assert transferred is not None
+
+                logging.info(
+                    "Requester-pays transfer for %s over %s to %s: %s GB",
+                    workspace,
+                    request.interval_start,
+                    request.interval_end,
+                    transferred,
+                )
+                yield self.generate_billing_event(request, workspace, float(transferred))
+
+    def gen_empty_catalogue_message(self, msg: Iterator[GenerateRequesterPaysBillingEventRequestMsg]) -> Never:
         raise NotImplementedError()

@@ -15,12 +15,19 @@ from eodhp_utils.runner import GeneratorRunner, log_component_version, setup_log
 from pulsar.schema import BytesSchema
 
 from accounting_s3_usage.sampler.messager import (
+    RequesterPaysBillingEventMessager,
     S3AccessBillingEventMessager,
     S3StorageSamplerMessager,
 )
-from accounting_s3_usage.sampler.metrics import create_athena_table
+from accounting_s3_usage.sampler.metrics import (
+    check_requester_pays_settings,
+    create_athena_table,
+    create_data_access_trail_table,
+    requester_pays_billing_enabled,
+)
 from accounting_s3_usage.sampler.sample_requests import (
     generate_access_billing_requests,
+    generate_requester_pays_billing_requests,
     generate_sample_times,
     generate_storage_sample_requests,
     generate_workspace_s3_access_point_list,
@@ -38,12 +45,14 @@ TOPIC_STORAGE = os.getenv("PULSAR_TOPIC_STORAGE", "billing-events-consumption-ra
 client: pulsar.Client | None = None
 storage_messager: GeneratorRunner | None = None
 usage_messager: GeneratorRunner | None = None
+requester_pays_messager: GeneratorRunner | None = None
 
 
 def generate_billing_events(last_generation: datetime, interval: timedelta) -> Messager.Failures:
     """This generates and sends all billing events which are new since last_generation."""
     global storage_messager
     global usage_messager
+    global requester_pays_messager
     global client
 
     logging.info(
@@ -78,17 +87,28 @@ def generate_billing_events(last_generation: datetime, interval: timedelta) -> M
             name="access-collector",
         )
 
-    ap_list = list(generate_workspace_s3_access_point_list())
+        if requester_pays_billing_enabled():
+            requester_pays_messager = GeneratorRunner(
+                messager=RequesterPaysBillingEventMessager(producer=usage_producer),
+                threads=1,
+                batch_size=1,
+                name="requester-pays-collector",
+            )
 
-    access_billing_requests = generate_access_billing_requests(
-        ap_list,
-        generate_sample_times(last_generation, interval),
-    )
+    ap_list = list(generate_workspace_s3_access_point_list())
+    intervals = list(generate_sample_times(last_generation, interval))
+
+    access_billing_requests = generate_access_billing_requests(ap_list, intervals)
 
     usage_failures = usage_messager.consume(access_billing_requests)
     storage_failures = storage_messager.consume(generate_storage_sample_requests(ap_list))
+    failures = storage_failures.add(usage_failures)
 
-    return storage_failures.add(usage_failures)
+    if requester_pays_messager is not None:
+        requester_pays_failures = requester_pays_messager.consume(generate_requester_pays_billing_requests(intervals))
+        failures = failures.add(requester_pays_failures)
+
+    return failures
 
 
 @click.command()
@@ -125,6 +145,12 @@ def cli(verbose: int, pulsar_url: str, backfill: int, interval: str, once: bool)
             sys.exit(2)
 
     create_athena_table()
+
+    if requester_pays_billing_enabled():
+        check_requester_pays_settings()
+        create_data_access_trail_table()
+    else:
+        logging.info("DATA_ACCESS_TRAIL_TABLE is not set: requester-pays reads are not charged")
 
     logging.info(f"S3 accounting collector starting with interval {interval_td}. Back-filling {backfill} intervals.")
 
