@@ -26,6 +26,7 @@ from accounting_s3_usage.sampler.metrics import (
     requester_pays_billing_enabled,
 )
 from accounting_s3_usage.sampler.sample_requests import (
+    LOG_DELAY_BUFFER,
     generate_access_billing_requests,
     generate_requester_pays_billing_requests,
     generate_sample_times,
@@ -183,7 +184,11 @@ def main_loop(backfill: timedelta, interval: timedelta, once: bool) -> int | Non
             next_collection = datetime.now(UTC) + timedelta(minutes=10)
         else:
             next_collection = next_collection_after(generation_start, interval)
-            last_generation = generation_start
+            # A run only covers periods that ended before its start less the log delay, so
+            # carry on from there. Carrying on from generation_start skipped the period that
+            # was still within the delay, which lost a period on every restart. Periods sent
+            # twice are harmless: their events have the same UUIDs.
+            last_generation = generation_start - LOG_DELAY_BUFFER
 
         wait_until(next_collection)
         generation_start = datetime.now(UTC)
