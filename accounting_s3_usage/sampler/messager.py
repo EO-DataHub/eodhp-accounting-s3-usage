@@ -1,7 +1,8 @@
 import logging
 import uuid
 from collections import defaultdict
-from collections.abc import Iterable, Iterator
+from collections.abc import Generator, Iterable, Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Never
 
@@ -13,7 +14,7 @@ from eodhp_utils.pulsar.messages import (
     BillingResourceConsumptionRateSample,
 )
 from opentelemetry import baggage, trace
-from opentelemetry.context import attach, detach
+from opentelemetry.context import attach, detach, get_current
 
 from .metrics import (
     get_access_point_api_calls,
@@ -29,6 +30,29 @@ from .sample_requests import (
 
 tracer = trace.get_tracer("s3-usage-sampler")
 
+# Storage used by a workspace's object store, in GB.
+STORAGE_SKU = "AWS-S3-STORAGE"
+
+
+@contextmanager
+def message_baggage(**values: str) -> Generator[None]:
+    """
+    Sets OpenTelemetry baggage for the Pulsar messages sent inside the block.
+
+    Messager sends each message while process_msg is paused at its `yield`, and puts the current
+    context, baggage included, in the message's properties. The services that receive the message
+    add the baggage to their spans' attributes. So yield each message inside this block, with the
+    workspace and SKU, to make the receiving services' logs show them.
+    """
+    context = get_current()
+    for key, value in values.items():
+        context = baggage.set_baggage(key, value, context=context)
+    token = attach(context)
+    try:
+        yield
+    finally:
+        detach(token)
+
 
 class S3StorageSamplerMessager(Messager[Iterator[SampleStorageUseRequestMsg], BillingResourceConsumptionRateSample]):
     """
@@ -41,11 +65,11 @@ class S3StorageSamplerMessager(Messager[Iterator[SampleStorageUseRequestMsg], Bi
     def generate_storage_sample(
         self, workspace: str, storage_gb: float, sample_time: datetime
     ) -> Messager.PulsarMessageAction:
-        sample_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"{workspace}-AWS-S3-STORAGE-{sample_time.isoformat()}")
+        sample_uuid = uuid.uuid5(uuid.NAMESPACE_DNS, f"{workspace}-{STORAGE_SKU}-{sample_time.isoformat()}")
         sample = BillingResourceConsumptionRateSample(
             uuid=str(sample_uuid),
             sample_time=sample_time.isoformat(),
-            sku="AWS-S3-STORAGE",
+            sku=STORAGE_SKU,
             user=None,
             workspace=workspace,
             rate=round(storage_gb, 6),
@@ -54,9 +78,7 @@ class S3StorageSamplerMessager(Messager[Iterator[SampleStorageUseRequestMsg], Bi
 
     def process_msg(self, msg: Iterator[SampleStorageUseRequestMsg]) -> Iterable[Messager.Action]:
         for request in msg:
-            token = attach(baggage.set_baggage("workspace", request.workspace))
-
-            try:
+            with message_baggage(workspace=request.workspace, sku=STORAGE_SKU):
                 workspace = request.workspace
                 bucket_name = request.bucket_name
                 sample_time = datetime.now(UTC)
@@ -70,8 +92,6 @@ class S3StorageSamplerMessager(Messager[Iterator[SampleStorageUseRequestMsg], Bi
                 )
 
                 yield self.generate_storage_sample(workspace, storage_gb, sample_time)
-            finally:
-                detach(token)
 
     def gen_empty_catalogue_message(self, msg: Iterator[SampleStorageUseRequestMsg]) -> Never:
         raise NotImplementedError()
@@ -107,8 +127,7 @@ class S3AccessBillingEventMessager(Messager[Iterator[GenerateAccessBillingEventR
 
     def process_msg(self, msg: Iterator[GenerateAccessBillingEventRequestMsg]) -> Iterable[Messager.Action]:
         for request in msg:
-            token = attach(baggage.set_baggage("workspace", request.workspace))
-            try:
+            with message_baggage(workspace=request.workspace):
                 sku_quantities: defaultdict[str, float] = defaultdict(lambda: 0)
 
                 data_transfer_by_destination = get_access_point_data_transfer(
@@ -149,9 +168,8 @@ class S3AccessBillingEventMessager(Messager[Iterator[GenerateAccessBillingEventR
                 )
 
                 for sku, quantity in sku_quantities.items():
-                    yield self.generate_billing_event(request, sku, quantity)
-            finally:
-                detach(token)
+                    with message_baggage(sku=sku):
+                        yield self.generate_billing_event(request, sku, quantity)
 
     def gen_empty_catalogue_message(self, msg: Iterator[GenerateAccessBillingEventRequestMsg]) -> Never:
         raise NotImplementedError()
@@ -194,14 +212,15 @@ class RequesterPaysBillingEventMessager(Messager[Iterator[GenerateRequesterPaysB
                 assert workspace is not None
                 assert transferred is not None
 
-                logging.info(
-                    "Requester-pays transfer for %s over %s to %s: %s GB",
-                    workspace,
-                    request.interval_start,
-                    request.interval_end,
-                    transferred,
-                )
-                yield self.generate_billing_event(request, workspace, float(transferred))
+                with message_baggage(workspace=workspace, sku=REQUESTER_PAYS_SKU):
+                    logging.info(
+                        "Requester-pays transfer for %s over %s to %s: %s GB",
+                        workspace,
+                        request.interval_start,
+                        request.interval_end,
+                        transferred,
+                    )
+                    yield self.generate_billing_event(request, workspace, float(transferred))
 
     def gen_empty_catalogue_message(self, msg: Iterator[GenerateRequesterPaysBillingEventRequestMsg]) -> Never:
         raise NotImplementedError()
